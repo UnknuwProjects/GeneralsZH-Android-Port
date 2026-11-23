@@ -482,6 +482,11 @@ public class SetupActivity extends Activity {
         statusText = null;
         onlineStatusView = null;
         updatesStatusView = null;
+        apkUpdateStatusView = null;
+        apkProgressBar = null;
+        apkCancelButton = null;
+        apkOpenButton = null;
+        apkDownloadButton = null;
         gameLanguageStatusView = null;
         renderBackendStatusView = null;
         customDriverStatusView = null;
@@ -630,6 +635,35 @@ public class SetupActivity extends Activity {
     private boolean updateCheckRunning;
     private static boolean sAutoUpdateCheckedThisProcess;
 
+    // GeneralsX @feature Android port 23/11/2026 APK update download (see ApkUpdate): the
+    // release's APK, downloaded into Downloads with a progress bar and speed, opened by
+    // the system installer. The state lives in fields, not in the views: showTab()
+    // rebuilds the whole page on every tab switch, and the activity itself survives
+    // rotation (configChanges), so the download thread keeps running through both and
+    // buildUpdatesSection() re-attaches the views from this state every time.
+    private TextView apkUpdateStatusView;
+    private android.widget.ProgressBar apkProgressBar;
+    private MaterialButton apkCancelButton;
+    private MaterialButton apkOpenButton;
+    private MaterialButton apkDownloadButton;
+    private ApkState apkState = new ApkState();
+    private Thread apkDownloadThread;
+    private java.util.concurrent.atomic.AtomicBoolean apkDownloadCancel =
+        new java.util.concurrent.atomic.AtomicBoolean();
+
+    private static final class ApkState {
+        ApkUpdate.Release release; // the newer release on record, if one is known
+        java.io.File file;         // the downloaded APK, once it is on disk
+        long downloaded;
+        long total;
+        long speed;
+        boolean checking;
+        boolean running;
+        boolean done;
+        boolean cancelled;
+        String error;              // last failure message, if any
+    }
+
     private void buildUpdatesSection(LinearLayout root) {
         LinearLayout content = UiKit.card(root);
         UiKit.sectionHeader(content, R.drawable.ic_gzh_refresh,
@@ -638,6 +672,33 @@ public class SetupActivity extends Activity {
         updatesStatusView = UiKit.body(content, null);
         UiKit.button(content, UiKit.BTN_TONAL, R.drawable.ic_gzh_download,
             getString(R.string.setup_button_check_updates), () -> runUpdateCheck(true));
+        // GeneralsX @feature Android port 23/11/2026 The APK itself, when a newer release
+        // is out: its download lives here (see ApkUpdate), with a progress bar, speed
+        // and cancel, and an Open button once it is on disk. The views are rebuilt from
+        // apkState every time this page is built, so a tab switch or a rotation never
+        // loses a running download.
+        apkUpdateStatusView = UiKit.body(content, null);
+        apkProgressBar = new android.widget.ProgressBar(this, null,
+            android.R.attr.progressBarStyleHorizontal);
+        apkProgressBar.setMax(1000);
+        apkProgressBar.setProgressTintList(UiKit.tint(this, R.color.gzh_primary));
+        content.addView(apkProgressBar, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, UiKit.dp(this, 12)));
+        LinearLayout apkButtons = UiKit.buttonRow(content);
+        apkDownloadButton = UiKit.button(apkButtons, UiKit.BTN_TONAL, R.drawable.ic_gzh_download,
+            getString(R.string.setup_apk_download), () -> {
+                if (apkState.release != null) {
+                    startApkDownload(apkState.release);
+                }
+            });
+        UiKit.share(apkDownloadButton, true);
+        apkCancelButton = UiKit.button(apkButtons, UiKit.BTN_DANGER, 0,
+            getString(R.string.setup_apk_cancel), this::cancelApkDownload);
+        UiKit.share(apkCancelButton, false);
+        apkOpenButton = UiKit.button(apkButtons, UiKit.BTN_PRIMARY, R.drawable.ic_gzh_play,
+            getString(R.string.setup_apk_open), this::openDownloadedApk);
+        UiKit.share(apkOpenButton, false);
+        refreshApkUpdateUi();
         // The community data patch is updated on the multiplayer screen; this card only says a
         // newer one is out and takes the player there.
         updatesOpenOnlineButton = UiKit.button(content, UiKit.BTN_TONAL, R.drawable.ic_gzh_globe,
@@ -684,11 +745,31 @@ public class SetupActivity extends Activity {
         if (userAsked) {
             toast(getString(R.string.setup_updates_checking));
         }
+        final String installedVersion = ApkUpdate.installedVersionName(this);
+        apkState.checking = true;
+        refreshApkUpdateUi();
         new Thread(() -> {
             final android.content.Context app = getApplicationContext();
             final UpdateManager.Result r = UpdateManager.check(app, true);
+            // GeneralsX @feature Android port 23/11/2026 The APK release is checked
+            // independently of the manifest: a newer APK may be out even when the
+            // manifest has nothing new. A failed release check never fails the update
+            // check itself — the old version keeps working.
+            ApkUpdate.Release apkRelease = null;
+            String apkError = null;
+            try {
+                ApkUpdate.Release latest = ApkUpdate.checkLatest();
+                if (ApkUpdate.isNewerThan(installedVersion, latest.tag)) {
+                    apkRelease = latest;
+                }
+            } catch (Exception e) {
+                apkError = e.getMessage();
+            }
+            final ApkUpdate.Release foundApk = apkRelease;
+            final String foundApkError = apkError;
             runOnUiThread(() -> {
                 updateCheckRunning = false;
+                apkState.checking = false;
                 refreshUpdatesStatus();
                 // The support card is read from the support.json this check may just have replaced.
                 if (r.supportUpdated && currentTab == TAB_HELP && contentHost != null) {
@@ -696,6 +777,12 @@ public class SetupActivity extends Activity {
                 }
                 // A new announcement may have just arrived with it.
                 maybeShowSupportPopup();
+                if (foundApk != null) {
+                    startApkDownload(foundApk);
+                } else if (foundApkError != null && userAsked) {
+                    apkState.error = getString(R.string.setup_apk_check_failed, foundApkError);
+                    refreshApkUpdateUi();
+                }
                 if (!r.ok) {
                     if (userAsked) {
                         toast(r.offline
@@ -713,11 +800,169 @@ public class SetupActivity extends Activity {
                     toast(getString(R.string.setup_updates_engine_ready, r.engineSeq));
                 } else if (r.engineIncompatible) {
                     toast(getString(R.string.setup_updates_engine_needs_apk, r.engineSeq));
-                } else if (userAsked) {
+                } else if (userAsked && foundApk == null) {
                     toast(getString(R.string.setup_updates_none));
                 }
             });
         }, "gx-update-check").start();
+    }
+
+    /** Syncs the APK download views with apkState; safe to call when the page is not built. */
+    private void refreshApkUpdateUi() {
+        if (apkUpdateStatusView == null) {
+            return;
+        }
+        if (apkState.checking) {
+            apkUpdateStatusView.setText(getString(R.string.setup_apk_checking));
+            apkUpdateStatusView.setVisibility(View.VISIBLE);
+            apkProgressBar.setVisibility(View.GONE);
+            apkDownloadButton.setVisibility(View.GONE);
+            apkCancelButton.setVisibility(View.GONE);
+            apkOpenButton.setVisibility(View.GONE);
+            return;
+        }
+        if (apkState.running) {
+            apkUpdateStatusView.setText(getString(R.string.setup_apk_downloading,
+                apkState.release != null ? apkState.release.tag : "",
+                ApkUpdate.formatSize(apkState.downloaded),
+                ApkUpdate.formatSize(apkState.total),
+                ApkUpdate.formatSpeed(apkState.speed)));
+            apkUpdateStatusView.setVisibility(View.VISIBLE);
+            apkProgressBar.setVisibility(View.VISIBLE);
+            apkProgressBar.setProgress(apkState.total > 0
+                ? (int) Math.min(1000, apkState.downloaded * 1000 / apkState.total) : 0);
+            apkDownloadButton.setVisibility(View.GONE);
+            apkCancelButton.setVisibility(View.VISIBLE);
+            apkOpenButton.setVisibility(View.GONE);
+            return;
+        }
+        if (apkState.done && apkState.file != null) {
+            apkUpdateStatusView.setText(getString(R.string.setup_apk_downloaded,
+                apkState.file.getName()));
+            apkUpdateStatusView.setVisibility(View.VISIBLE);
+            apkProgressBar.setVisibility(View.GONE);
+            apkDownloadButton.setVisibility(View.GONE);
+            apkCancelButton.setVisibility(View.GONE);
+            apkOpenButton.setVisibility(View.VISIBLE);
+            return;
+        }
+        if (apkState.error != null) {
+            apkUpdateStatusView.setText(apkState.error);
+            apkUpdateStatusView.setVisibility(View.VISIBLE);
+            apkProgressBar.setVisibility(View.GONE);
+            apkDownloadButton.setVisibility(apkState.release != null ? View.VISIBLE : View.GONE);
+            apkCancelButton.setVisibility(View.GONE);
+            apkOpenButton.setVisibility(View.GONE);
+            return;
+        }
+        if (apkState.cancelled) {
+            apkUpdateStatusView.setText(getString(R.string.setup_apk_download_cancelled));
+            apkUpdateStatusView.setVisibility(View.VISIBLE);
+            apkProgressBar.setVisibility(View.GONE);
+            apkDownloadButton.setVisibility(apkState.release != null ? View.VISIBLE : View.GONE);
+            apkCancelButton.setVisibility(View.GONE);
+            apkOpenButton.setVisibility(View.GONE);
+            return;
+        }
+        if (apkState.release != null) {
+            apkUpdateStatusView.setText(getString(R.string.setup_apk_update_available,
+                apkState.release.tag));
+            apkUpdateStatusView.setVisibility(View.VISIBLE);
+            apkProgressBar.setVisibility(View.GONE);
+            apkDownloadButton.setVisibility(View.VISIBLE);
+            apkCancelButton.setVisibility(View.GONE);
+            apkOpenButton.setVisibility(View.GONE);
+            return;
+        }
+        // Nothing to say: hide the whole block.
+        apkUpdateStatusView.setVisibility(View.GONE);
+        apkProgressBar.setVisibility(View.GONE);
+        apkDownloadButton.setVisibility(View.GONE);
+        apkCancelButton.setVisibility(View.GONE);
+        apkOpenButton.setVisibility(View.GONE);
+    }
+
+    /**
+     * Downloads a newer release's APK into Downloads. Starts automatically when an
+     * update check finds one; the player can also start it again from the Download
+     * button after a failure or a cancel. If the APK is already sitting in
+     * Downloads at the right size, there is nothing to download — the Open button
+     * appears straight away.
+     */
+    private void startApkDownload(ApkUpdate.Release release) {
+        if (apkState.running) {
+            return;
+        }
+        if (!hasStorageAccess(this)) {
+            apkState.release = release;
+            apkState.error = getString(R.string.setup_apk_no_storage);
+            refreshApkUpdateUi();
+            return;
+        }
+        if (ApkUpdate.alreadyDownloaded(release)) {
+            apkState.release = release;
+            apkState.file = ApkUpdate.downloadsFile(release.assetName);
+            apkState.done = true;
+            apkState.error = null;
+            apkState.cancelled = false;
+            refreshApkUpdateUi();
+            return;
+        }
+        final java.io.File out = ApkUpdate.downloadsFile(release.assetName);
+        apkDownloadCancel.set(false);
+        apkState.release = release;
+        apkState.file = null;
+        apkState.running = true;
+        apkState.done = false;
+        apkState.cancelled = false;
+        apkState.error = null;
+        apkState.downloaded = 0;
+        apkState.total = release.assetSize;
+        apkState.speed = 0;
+        refreshApkUpdateUi();
+        apkDownloadThread = new Thread(() -> {
+            try {
+                ApkUpdate.downloadApk(release.downloadUrl, out, release.assetSize,
+                    (downloaded, total, speed) -> {
+                        apkState.downloaded = downloaded;
+                        apkState.total = total;
+                        apkState.speed = speed;
+                        runOnUiThread(this::refreshApkUpdateUi);
+                    }, apkDownloadCancel);
+                apkState.file = out;
+                apkState.done = true;
+                apkState.running = false;
+            } catch (ApkUpdate.Cancelled e) {
+                apkState.running = false;
+                apkState.cancelled = true;
+            } catch (Exception e) {
+                apkState.running = false;
+                apkState.error = getString(R.string.setup_apk_download_failed, e.getMessage());
+            }
+            runOnUiThread(this::refreshApkUpdateUi);
+        }, "gx-apk-download");
+        apkDownloadThread.start();
+    }
+
+    /** Stops the APK download; the partial file is deleted by the downloader. */
+    private void cancelApkDownload() {
+        apkDownloadCancel.set(true);
+    }
+
+    /**
+     * Opens the downloaded APK with the system installer. Installing is the
+     * player's decision from there — this app never installs anything itself.
+     */
+    private void openDownloadedApk() {
+        java.io.File apk = apkState.file;
+        if (apk == null || !apk.isFile()) {
+            return;
+        }
+        try {
+            startActivity(ApkUpdate.openApkIntent(this, apk));
+        } catch (android.content.ActivityNotFoundException e) {
+            toast(getString(R.string.setup_apk_no_installer));
+        }
     }
 
     // ------------------------------------------------------------ Help page

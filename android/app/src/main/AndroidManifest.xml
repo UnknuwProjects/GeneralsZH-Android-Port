@@ -72,6 +72,11 @@
          from battery optimization (GeneralsOnlineActivity.onSignIn) fixes
          that; this is the normal (non-dangerous) permission needed to even
          show that system prompt. -->
+    <!-- GeneralsX @feature Android port 23/11/2026 Deliberately no
+         REQUEST_INSTALL_PACKAGES here: the in-app APK update (ApkUpdate) only
+         downloads the release into Downloads and opens it, so the system
+         installer takes over — installing is the player's decision, and this
+         app never asks for the right to install anything itself. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <!-- GeneralsX @bugfix Android port 24/09/2026 Issue #22 (Android 10): with targetSdk 29+
