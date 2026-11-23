@@ -77,9 +77,14 @@ public final class DriverCatalog {
             this(id, label, releasesApi, family, note, "", "", "");
         }
 
+        // GeneralsX @bugfix Android port 23/11/2026 The old 6-argument form took its last
+        // argument as a pinned SHA-256, so every call site that passed a credit line there
+        // (nine of eleven sources) compared the downloaded zip against that text and always
+        // failed with "Checksum mismatch", and showed no credit under its button. The 6th
+        // argument is the credit line; a pinned checksum uses the 9-argument form.
         public Source(String id, String label, String releasesApi,
-                      GpuInfo.Family family, String note, String expectedSha256) {
-            this(id, label, releasesApi, family, note, "", "", "", expectedSha256);
+                      GpuInfo.Family family, String note, String credit) {
+            this(id, label, releasesApi, family, note, credit, "", "", "");
         }
 
         public Source(String id, String label, String releasesApi,
