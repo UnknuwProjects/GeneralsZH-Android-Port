@@ -4030,7 +4030,32 @@ void W3DView::updateTerrain()
 		drawHeight = static_cast<Int>(drawHeight * terrainScale);
 	}
 
+	// GeneralsX @diag Android port 23/11/2026 Remember the stored draw
+	// size before asking for a new one, so a size change can be logged
+	// with the pitch and the band that asked for it: the 10412 log showed
+	// the size flipping every frame while the sampled pitch sat steady
+	// at 38 degrees, which means the pitch was never the problem -- the
+	// stored size was being rewritten behind setTerrainDrawSize()'s back
+	// (createDrawArea() replaced it with the stretch size or the whole
+	// map). This line names the culprit on the next log if the size ever
+	// changes again; when the size is stable it stays silent.
+	WorldHeightMap *gxTerrainMap = TheTerrainRenderObject->getMap();
+	const Int gxStoredDrawWidth = gxTerrainMap ? gxTerrainMap->getDrawWidth() : 0;
+	const Int gxStoredDrawHeight = gxTerrainMap ? gxTerrainMap->getDrawHeight() : 0;
+
 	TheTerrainRenderObject->setTerrainDrawSize(drawWidth, drawHeight);
+
+	if (gxTerrainMap && (gxStoredDrawWidth != gxTerrainMap->getDrawWidth() ||
+		gxStoredDrawHeight != gxTerrainMap->getDrawHeight()))
+	{
+		const Bool gxStretchTerrain = TheGlobalData ? TheGlobalData->m_stretchTerrain : FALSE;
+		const Bool gxDrawEntireTerrain = TheGlobalData ? TheGlobalData->m_drawEntireTerrain : FALSE;
+		GX_PERF_TRACE("[GX-DRAWSIZE] pitch=%.3f band=%s req=%dx%d was=%dx%d stretch=%d entire=%d scale=%.2f extent=%dx%d\n",
+			RAD_TO_DEGF(cameraPitch), gxLowAngle ? "low" : "normal",
+			drawWidth, drawHeight, gxStoredDrawWidth, gxStoredDrawHeight,
+			gxStretchTerrain ? 1 : 0, gxDrawEntireTerrain ? 1 : 0, terrainScale,
+			gxTerrainMap->getXExtent(), gxTerrainMap->getYExtent());
+	}
 
 	// GeneralsX @performance Android port 23/11/2026 Skip the recenter
 	// when the camera has not actually moved since the last terrain

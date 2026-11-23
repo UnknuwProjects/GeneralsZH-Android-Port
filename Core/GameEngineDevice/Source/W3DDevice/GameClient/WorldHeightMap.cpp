@@ -2224,14 +2224,19 @@ WorldHeightMap::DrawArea WorldHeightMap::createDrawArea(Int xOrg, Int yOrg)
 	area.sizeX = m_drawWidthX;
 	area.sizeY = m_drawHeightY;
 
-	if (TheGlobalData && TheGlobalData->m_stretchTerrain) {
-		area.sizeX = STRETCH_DRAW_WIDTH;
-		area.sizeY = STRETCH_DRAW_HEIGHT;
-	}
-	if (TheGlobalData && TheGlobalData->m_drawEntireTerrain) {
-		area.sizeX = m_width;
-		area.sizeY = m_height;
-	}
+	// GeneralsX @bugfix Android port 23/11/2026 The draw size used to
+	// be replaced here with the stretch size or the whole map, but the
+	// size is owned by setTerrainDrawSize(): updateCenter() stores this
+	// area back through setDrawArea(), so every replacement rewrote the
+	// stored size behind setTerrainDrawSize()'s back and the next
+	// updateTerrain() saw a "change" again -- the draw size flip-flopped
+	// every frame (10412 log: sizeChg exactly equals full, 359 each)
+	// even though the camera never moved and the pitch sat steady at
+	// 38 degrees. The area has to match the grid the terrain actually
+	// draws, which is the size setTerrainDrawSize() set; the clamp
+	// below still keeps the window inside the map. The stretch and
+	// whole-map flags still take effect where they belong -- the far
+	// clip plane and the tree panels read them directly.
 	area.sizeX = std::min(area.sizeX, m_width);
 	area.sizeY = std::min(area.sizeY, m_height);
 	area.originX = clamp(0, xOrg, m_width - area.sizeX);
