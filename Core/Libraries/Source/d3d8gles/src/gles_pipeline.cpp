@@ -2625,6 +2625,16 @@ enum GeneralsXDrawCategory {
 static int s_gxDrawCategory = GX_DRAWCAT_OTHER;
 static unsigned s_gxDrawsByCategory[GX_DRAWCAT_COUNT] = {0, 0, 0, 0, 0, 0, 0};
 
+// GeneralsX @diag author 23/11/2026 Synchronized (plain-lock) buffer uploads
+// by the draw source active when the upload ran -- see ensureVBUploaded /
+// ensureIBUploaded below. The 10408 device log shows 23-35 MB/frame of
+// these, and the counters do not say whose they are; the upload runs at the
+// first draw that needs the freshly written bytes, so the active draw
+// category names the subsystem that owns them (terrain tiles upload on a
+// terrain draw, the UI ring on a 2D draw).
+static double s_gxSyncUploadBytesByCategory[GX_DRAWCAT_COUNT] = {};
+static unsigned s_gxSyncUploadCountByCategory[GX_DRAWCAT_COUNT] = {};
+
 // GeneralsX @perf Android port 09/05/2026 UI cost buckets, filled by engine
 // code that times itself (see d3d8gles_AddUiTiming's callers). Reported next to
 // the draw split so one log line shows both where the draws and where the CPU
@@ -3496,6 +3506,11 @@ void WebGLPipeline::ensureVBUploaded(WebGLVertexBuffer *vb)
 				// A plain lock (no NOOVERWRITE): synchronized, as D3D would be.
 				glBufferSubData(GL_COPY_WRITE_BUFFER, off, len, vb->m_bits.data() + vb->m_gl.dirtyBegin);
 				m_perfSyncUploads++;
+				// GeneralsX @diag author 23/11/2026 Attribute this synchronized
+				// upload to the draw source running right now -- see the
+				// counters declared next to s_gxDrawCategory above.
+				s_gxSyncUploadCountByCategory[s_gxDrawCategory]++;
+				s_gxSyncUploadBytesByCategory[s_gxDrawCategory] += (double)len;
 			} else {
 				// Map, copy and unmap on the GL thread (falling back to glBufferSubData when the
 				// driver refuses the mapping): see gxrt::bufferWrite.
@@ -3560,6 +3575,10 @@ void WebGLPipeline::ensureIBUploaded(WebGLIndexBuffer *ib)
 				// A plain lock (no NOOVERWRITE): synchronized, as D3D would be.
 				glBufferSubData(GL_COPY_WRITE_BUFFER, off, len, ib->m_bits.data() + ib->m_gl.dirtyBegin);
 				m_perfSyncUploads++;
+				// GeneralsX @diag author 23/11/2026 Same attribution as the
+				// vertex-buffer branch above.
+				s_gxSyncUploadCountByCategory[s_gxDrawCategory]++;
+				s_gxSyncUploadBytesByCategory[s_gxDrawCategory] += (double)len;
 			} else {
 				// Map, copy and unmap on the GL thread (falling back to glBufferSubData when the
 				// driver refuses the mapping): see gxrt::bufferWrite.
@@ -4325,6 +4344,36 @@ void WebGLPipeline::present()
 				fprintf(stderr, "[d3d8gles] perf-opt: %.1f/frame buffer updates from plain locks, uploaded synchronized\n",
 					m_perfSyncUploads / frames);
 			m_perfSyncUploads = 0;
+			// GeneralsX @diag author 23/11/2026 Same window's synchronized
+			// uploads split by draw source, so the log says how much of the
+			// 23-35 MB/frame is terrain tiles and how much is everything
+			// else. Only printed when there was at least one, like the line
+			// above; "other" folds shadows, skin and uncategorized draws
+			// together, matching the perf-cpu line.
+			{
+				double syncTotal = 0.0;
+				for (int i = 0; i < GX_DRAWCAT_COUNT; i++) syncTotal += s_gxSyncUploadCountByCategory[i];
+				if (syncTotal > 0.0)
+					fprintf(stderr, "[d3d8gles] perf-syncupload/frame by source: terrain=%.1f (%.0fKB) models=%.1f (%.0fKB) sorted=%.1f (%.0fKB) 2d-ui=%.1f (%.0fKB) other=%.1f (%.0fKB)\n",
+						s_gxSyncUploadCountByCategory[GX_DRAWCAT_TERRAIN] / frames,
+						s_gxSyncUploadBytesByCategory[GX_DRAWCAT_TERRAIN] / 1024.0 / frames,
+						s_gxSyncUploadCountByCategory[GX_DRAWCAT_MODELS] / frames,
+						s_gxSyncUploadBytesByCategory[GX_DRAWCAT_MODELS] / 1024.0 / frames,
+						s_gxSyncUploadCountByCategory[GX_DRAWCAT_SORTED] / frames,
+						s_gxSyncUploadBytesByCategory[GX_DRAWCAT_SORTED] / 1024.0 / frames,
+						s_gxSyncUploadCountByCategory[GX_DRAWCAT_2D] / frames,
+						s_gxSyncUploadBytesByCategory[GX_DRAWCAT_2D] / 1024.0 / frames,
+						(s_gxSyncUploadCountByCategory[GX_DRAWCAT_OTHER] +
+						 s_gxSyncUploadCountByCategory[GX_DRAWCAT_SHADOWS] +
+						 s_gxSyncUploadCountByCategory[GX_DRAWCAT_SKIN]) / frames,
+						(s_gxSyncUploadBytesByCategory[GX_DRAWCAT_OTHER] +
+						 s_gxSyncUploadBytesByCategory[GX_DRAWCAT_SHADOWS] +
+						 s_gxSyncUploadBytesByCategory[GX_DRAWCAT_SKIN]) / 1024.0 / frames);
+				for (int i = 0; i < GX_DRAWCAT_COUNT; i++) {
+					s_gxSyncUploadCountByCategory[i] = 0;
+					s_gxSyncUploadBytesByCategory[i] = 0.0;
+				}
+			}
 			if (m_perfWorldUploads + m_perfWorldSkips > 0)
 				fprintf(stderr, "[d3d8gles] perf-opt: world matrix %.1f/frame sent, %.1f/frame already in the program\n",
 					m_perfWorldUploads / frames, m_perfWorldSkips / frames);

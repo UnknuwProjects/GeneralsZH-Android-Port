@@ -106,6 +106,28 @@ extern "C" int d3d8gles_SetDrawCategory(int category);
 // Doesn't work well.  jba.
 
 HeightMapRenderObjClass *TheHeightMap = nullptr;
+
+// GeneralsX @diag author 23/11/2026 Counters for the terrain update, read
+// and reset by W3DView.cpp's [GX-PERF-VIEW] window. Plain integer adds only
+// (no clock reads), so they cost nothing measurable next to the per-cell
+// work below; 64-bit so a long session cannot wrap them.
+static UnsignedInt64 s_gxDiagUpdateCenterCalls = 0;
+static UnsignedInt64 s_gxDiagUpdateBlockCalls = 0;
+static UnsignedInt64 s_gxDiagUpdateBlockCells = 0;
+
+// GeneralsX @diag author 23/11/2026 Hand the window's terrain counts to the
+// caller and start the next window at zero. Same thread as the increments
+// (the game thread), so no locking is needed.
+void HeightMapRenderObjClass::takeDiagTerrainCounts(UnsignedInt64 &centerCalls, UnsignedInt64 &blockCalls, UnsignedInt64 &blockCells)
+{
+	centerCalls = s_gxDiagUpdateCenterCalls;
+	blockCalls = s_gxDiagUpdateBlockCalls;
+	blockCells = s_gxDiagUpdateBlockCells;
+	s_gxDiagUpdateCenterCalls = 0;
+	s_gxDiagUpdateBlockCalls = 0;
+	s_gxDiagUpdateBlockCells = 0;
+}
+
 //-----------------------------------------------------------------------------
 //         Private Data
 //-----------------------------------------------------------------------------
@@ -986,6 +1008,11 @@ Int HeightMapRenderObjClass::updateBlock(Int x0, Int y0, Int x1, Int y1,  WorldH
 	DEBUG_ASSERTCRASH(x0<=x1, ("HeightMapRenderObjClass::UpdateBlock parameters have inside-out rectangle (on X)."));
 	DEBUG_ASSERTCRASH(y0<=y1, ("HeightMapRenderObjClass::UpdateBlock parameters have inside-out rectangle (on Y)."));
 #endif
+	// GeneralsX @diag author 23/11/2026 Count the block and the cells it was
+	// asked to rewrite. The loops below run i in [x0,x1) and j in [y0,y1),
+	// so (x1-x0)*(y1-y0) is the cell count they actually iterate.
+	++s_gxDiagUpdateBlockCalls;
+	s_gxDiagUpdateBlockCells += (UnsignedInt64)(x1 - x0) * (UnsignedInt64)(y1 - y0);
 	Invalidate_Cached_Bounding_Volumes();
 	if (pMap && m_treeBuffer != nullptr) {
 		REF_PTR_SET(m_stageZeroTexture, pMap->getTerrainTexture());
@@ -1677,6 +1704,10 @@ void HeightMapRenderObjClass::updateCenter(CameraClass *camera, const Vector3 *c
 	}
 	if (m_vertexBufferTiles ==nullptr)
 		return;		//did not initialize resources yet.
+
+	// GeneralsX @diag author 23/11/2026 Count the calls that got past the
+	// guards above, i.e. the ones that actually did terrain-center work.
+	++s_gxDiagUpdateCenterCalls;
 
 	BaseHeightMapRenderObjClass::updateCenter(camera, cameraPivot, pLightsIterator);
 

@@ -33,11 +33,13 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 // SYSTEM INCLUDES ////////////////////////////////////////////////////////////////////////////////
+#include <chrono>
 #include <stdlib.h>
 #include <windows.h>
 
 // USER INCLUDES //////////////////////////////////////////////////////////////////////////////////
 #include "Lib/BaseType.h"
+#include "GXTrace.h"
 
 #include "Common/BuildAssistant.h"
 #include "Common/FramePacer.h"
@@ -1372,11 +1374,69 @@ void W3DView::stepView()
 	}
 }
 
+// GeneralsX @diag author 23/11/2026 Split the frame's view/terrain update
+// out of the [GX-PERF-DISPLAY] preRTT number: time the whole W3DView::update()
+// and the updateTerrain() inside it, and count the terrain-center work
+// (updateCenter calls, updateBlock calls and cells). One [GX-PERF-VIEW] line
+// per second, same window pattern as gxTraceDisplayDrawPhase in
+// W3DDisplay.cpp. Timers only, no behavior change: the two steady_clock
+// reads per update() cost nothing next to the camera math and terrain work,
+// and the printed line itself is gated by GX_PERF_TRACE. "rest" is the
+// update() time outside updateTerrain(); it is clamped at zero because a
+// rare scripted camera set (set3DCameraLookAt) can run terrain work outside
+// update().
+static double s_gxDiagViewUpdateUs = 0;
+static double s_gxDiagTerrainUs = 0;
+static UnsignedInt s_gxDiagViewFrames = 0;
+static UnsignedInt s_gxDiagTerrainCalls = 0;
+
+static void gxDiagTraceViewUpdate()
+{
+	static std::chrono::steady_clock::time_point s_windowStart = std::chrono::steady_clock::now();
+
+	std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+	double elapsedUs = std::chrono::duration<double, std::micro>(now - s_windowStart).count();
+	if (elapsedUs >= 1'000'000.0 && s_gxDiagViewFrames > 0)
+	{
+		UnsignedInt64 centerCalls = 0, blockCalls = 0, blockCells = 0;
+		HeightMapRenderObjClass::takeDiagTerrainCounts(centerCalls, blockCalls, blockCells);
+
+		const double frames = (double)s_gxDiagViewFrames;
+		const double viewMs = s_gxDiagViewUpdateUs / 1000.0 / frames;
+		const double terrainMs = s_gxDiagTerrainUs / 1000.0 / frames;
+		const double restMs = viewMs > terrainMs ? viewMs - terrainMs : 0.0;
+		GX_PERF_TRACE("[GX-PERF-VIEW] frames=%u view=%.2fms terrain=%.2fms terrainCalls=%.1f rest=%.2fms centerCalls=%.1f blockCalls=%.1f blockCells=%.0f\n",
+			s_gxDiagViewFrames,
+			viewMs,
+			terrainMs,
+			(double)s_gxDiagTerrainCalls / frames,
+			restMs,
+			(double)centerCalls / frames,
+			(double)blockCalls / frames,
+			(double)blockCells / frames);
+
+		s_windowStart = now;
+		s_gxDiagViewUpdateUs = s_gxDiagTerrainUs = 0.0;
+		s_gxDiagViewFrames = s_gxDiagTerrainCalls = 0;
+	}
+}
+
+static void gxDiagNoteViewUpdate(double elapsedUs)
+{
+	s_gxDiagViewUpdateUs += elapsedUs;
+	++s_gxDiagViewFrames;
+	gxDiagTraceViewUpdate();
+}
+
 //DECLARE_PERF_TIMER(W3DView_updateView)
 void W3DView::update()
 {
 	//USE_PERF_TIMER(W3DView_updateView)
 	Bool didScriptedMovement = false;
+
+	// GeneralsX @diag author 23/11/2026 Time this whole update() call; the
+	// note at each exit below folds it into the [GX-PERF-VIEW] window.
+	const std::chrono::steady_clock::time_point gxDiagStart = std::chrono::steady_clock::now();
 
 #ifdef LOG_FRAME_TIMES
 	__int64 curTime64,freq64;
@@ -1678,6 +1738,7 @@ void W3DView::update()
 	}
 
 	if (TheScriptEngine->isTimeFast()) {
+		gxDiagNoteViewUpdate(std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - gxDiagStart).count());
 		return; // don't draw - makes it faster :) jba.
 	}
 
@@ -1704,6 +1765,8 @@ void W3DView::update()
 	// render all of the visible Drawables
 	/// @todo this needs to use a real region partition or something
 	TheGameClient->iterateDrawablesInRegion( &axisAlignedRegion, drawDrawable, nullptr );
+
+	gxDiagNoteViewUpdate(std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - gxDiagStart).count());
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -3784,6 +3847,11 @@ void W3DView::updateTerrain()
 {
 	DEBUG_ASSERTCRASH(TheTerrainRenderObject != nullptr, ("TheTerrainRenderObject is null"));
 
+	// GeneralsX @diag author 23/11/2026 Time the terrain-center recompute
+	// (setTerrainDrawSize + updateCenter) on its own: in the 10408 device
+	// log this is the prime suspect inside the 91-177 ms preRTT phase.
+	const std::chrono::steady_clock::time_point gxDiagStart = std::chrono::steady_clock::now();
+
 	RefRenderObjListIterator *it = W3DDisplay::m_3DScene->createLightsIterator();
 	const Vector3 cameraPivot(m_pos.x, m_pos.y, m_pos.z);
 	const Real cameraPitch = asin(fabs(m_3DCamera->Get_Forward_Dir().Z));
@@ -3818,4 +3886,7 @@ void W3DView::updateTerrain()
 		W3DDisplay::m_3DScene->destroyLightsIterator(it);
 		it = nullptr;
 	}
+
+	s_gxDiagTerrainUs += std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - gxDiagStart).count();
+	++s_gxDiagTerrainCalls;
 }

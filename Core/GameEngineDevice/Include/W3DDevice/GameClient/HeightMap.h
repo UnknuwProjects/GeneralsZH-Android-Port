@@ -85,6 +85,13 @@ public:
 
 	virtual int updateBlock(Int x0, Int y0, Int x1, Int y1, WorldHeightMap *pMap, RefRenderObjListIterator *pLightsIterator) override;
 
+	// GeneralsX @diag author 23/11/2026 Diagnostic counters for the terrain
+	// update: how often updateCenter() ran, and how many updateBlock() calls
+	// and terrain cells it asked to rewrite. Read and reset by
+	// W3DView.cpp's [GX-PERF-VIEW] window, so a device log can tell whether
+	// the terrain-center recompute is really running every frame.
+	static void takeDiagTerrainCounts(UnsignedInt64 &centerCalls, UnsignedInt64 &blockCalls, UnsignedInt64 &blockCells);
+
 protected:
 	Int *m_extraBlendTilePositions;	///<array holding x,y tile positions of all extra blend tiles. (used for 3 textures per tile).
 	Int m_numExtraBlendTiles;		///<number of blend tiles in m_extraBlendTilePositions.
