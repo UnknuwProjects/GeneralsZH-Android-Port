@@ -115,6 +115,30 @@ static UnsignedInt64 s_gxDiagUpdateCenterCalls = 0;
 static UnsignedInt64 s_gxDiagUpdateBlockCalls = 0;
 static UnsignedInt64 s_gxDiagUpdateBlockCells = 0;
 
+// GeneralsX @diag author 23/11/2026 Which branch updateCenter() took, read
+// and reset by W3DView.cpp's [GX-PERF-GATE] window. The 1.0.0 device log
+// shows the whole visible window rewritten every frame in-game, and the
+// strip logic below should make a small camera move cheap -- so the branch
+// matters: full means a full update was pending (usually a draw-size
+// change), bigJump means the computed origin jumped by more than half the
+// window, stripY/stripX mean only the newly exposed strip was rewritten,
+// noop means the origin moved by 2 cells or less and nothing was rewritten.
+// maxDeltaX/maxDeltaY are the largest origin moves seen (cells); the pitch
+// is the camera pitch in radians, to check it against the 37-degree
+// draw-size threshold; sizeChanges counts real draw-size changes, which are
+// what set the full-update flag.
+static UnsignedInt64 s_gxDiagCenterFull = 0;
+static UnsignedInt64 s_gxDiagCenterBigJump = 0;
+static UnsignedInt64 s_gxDiagCenterStripY = 0;
+static UnsignedInt64 s_gxDiagCenterStripX = 0;
+static UnsignedInt64 s_gxDiagCenterNoop = 0;
+static Int s_gxDiagCenterMaxDeltaX = 0;
+static Int s_gxDiagCenterMaxDeltaY = 0;
+static UnsignedInt64 s_gxDiagCenterPitchSamples = 0;
+static Real s_gxDiagCenterMinPitchRad = 0.0f;
+static Real s_gxDiagCenterMaxPitchRad = 0.0f;
+static UnsignedInt64 s_gxDiagDrawSizeChanges = 0;
+
 // GeneralsX @diag author 23/11/2026 Hand the window's terrain counts to the
 // caller and start the next window at zero. Same thread as the increments
 // (the game thread), so no locking is needed.
@@ -126,6 +150,45 @@ void HeightMapRenderObjClass::takeDiagTerrainCounts(UnsignedInt64 &centerCalls, 
 	s_gxDiagUpdateCenterCalls = 0;
 	s_gxDiagUpdateBlockCalls = 0;
 	s_gxDiagUpdateBlockCells = 0;
+}
+
+// GeneralsX @diag author 23/11/2026 Hand the window's updateCenter branch
+// counts to the caller and start the next window at zero. Same thread as
+// the increments (the game thread), so no locking is needed. When
+// updateCenter() never ran in the window, all branch counts are zero and
+// the pitch comes back as 0.0..0.0.
+void HeightMapRenderObjClass::takeDiagCenterCounts(UnsignedInt64 &full, UnsignedInt64 &bigJump, UnsignedInt64 &stripY, UnsignedInt64 &stripX, UnsignedInt64 &noop, Int &maxDeltaX, Int &maxDeltaY, UnsignedInt64 &sizeChanges, Real &minPitchRad, Real &maxPitchRad)
+{
+	full = s_gxDiagCenterFull;
+	bigJump = s_gxDiagCenterBigJump;
+	stripY = s_gxDiagCenterStripY;
+	stripX = s_gxDiagCenterStripX;
+	noop = s_gxDiagCenterNoop;
+	maxDeltaX = s_gxDiagCenterMaxDeltaX;
+	maxDeltaY = s_gxDiagCenterMaxDeltaY;
+	sizeChanges = s_gxDiagDrawSizeChanges;
+	if (s_gxDiagCenterPitchSamples == 0)
+	{
+		minPitchRad = 0.0f;
+		maxPitchRad = 0.0f;
+	}
+	else
+	{
+		minPitchRad = s_gxDiagCenterMinPitchRad;
+		maxPitchRad = s_gxDiagCenterMaxPitchRad;
+	}
+
+	s_gxDiagCenterFull = 0;
+	s_gxDiagCenterBigJump = 0;
+	s_gxDiagCenterStripY = 0;
+	s_gxDiagCenterStripX = 0;
+	s_gxDiagCenterNoop = 0;
+	s_gxDiagCenterMaxDeltaX = 0;
+	s_gxDiagCenterMaxDeltaY = 0;
+	s_gxDiagCenterPitchSamples = 0;
+	s_gxDiagCenterMinPitchRad = 0.0f;
+	s_gxDiagCenterMaxPitchRad = 0.0f;
+	s_gxDiagDrawSizeChanges = 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -1265,6 +1328,11 @@ void HeightMapRenderObjClass::setTerrainDrawSize(Int width, Int height)
 	if (width == m_map->getDrawWidth() && height == m_map->getDrawHeight())
 		return;
 
+	// GeneralsX @diag author 23/11/2026 Count real draw-size changes: a
+	// change sets m_needFullUpdate below, so a size that flip-flops every
+	// frame rewrites the whole terrain every frame.
+	++s_gxDiagDrawSizeChanges;
+
 	Int dx = width-m_map->getDrawWidth();
 	Int dy = height-m_map->getDrawHeight();
 	m_map->setDrawWidth(width);
@@ -1735,6 +1803,23 @@ void HeightMapRenderObjClass::updateCenter(CameraClass *camera, const Vector3 *c
 	}
 
 	const Real cameraPitch = asin(fabs(camera->Get_Forward_Dir().Z));
+
+	// GeneralsX @diag author 23/11/2026 Track the camera pitch for the
+	// [GX-PERF-GATE] window: the draw size flips at 37 degrees, half a
+	// degree under the 37.5-degree default pitch, so a pitch that wobbles
+	// across the threshold flip-flops the size and forces a full rewrite.
+	if (s_gxDiagCenterPitchSamples == 0)
+	{
+		s_gxDiagCenterMinPitchRad = cameraPitch;
+		s_gxDiagCenterMaxPitchRad = cameraPitch;
+	}
+	else
+	{
+		if (cameraPitch < s_gxDiagCenterMinPitchRad) s_gxDiagCenterMinPitchRad = cameraPitch;
+		if (cameraPitch > s_gxDiagCenterMaxPitchRad) s_gxDiagCenterMaxPitchRad = cameraPitch;
+	}
+	++s_gxDiagCenterPitchSamples;
+
 	Int newOrgX;
 	Int newOrgY;
 
@@ -1854,6 +1939,9 @@ void HeightMapRenderObjClass::updateCenter(CameraClass *camera, const Vector3 *c
 	m_updating = true;
 	if (m_needFullUpdate)
 	{
+		// GeneralsX @diag author 23/11/2026 A full update was pending, so
+		// the whole window is rewritten.
+		++s_gxDiagCenterFull;
 		m_needFullUpdate = false;
 		m_map->setDrawArea(newDrawArea);
 		updateBlock(0, 0, m_x-1, m_y-1, m_map, pLightsIterator);
@@ -1867,6 +1955,14 @@ void HeightMapRenderObjClass::updateCenter(CameraClass *camera, const Vector3 *c
 		const Int deltaY = newDrawArea.originY - m_map->getDrawOrgY();
 
 		if (IABS(deltaX) > m_x/2 || IABS(deltaY)>m_x/2) {
+			// GeneralsX @diag author 23/11/2026 The computed origin jumped
+			// by more than half the window, so the whole window is
+			// rewritten. Record how far it jumped: a real jump is a fast
+			// scroll or a bad origin, a small one here would mean the
+			// branch itself misfires.
+			++s_gxDiagCenterBigJump;
+			if (IABS(deltaX) > s_gxDiagCenterMaxDeltaX) s_gxDiagCenterMaxDeltaX = IABS(deltaX);
+			if (IABS(deltaY) > s_gxDiagCenterMaxDeltaY) s_gxDiagCenterMaxDeltaY = IABS(deltaY);
 			if (m_map->setDrawArea(newDrawArea)) {
 				m_originY = 0;
 				m_originX = 0;
@@ -1876,8 +1972,15 @@ void HeightMapRenderObjClass::updateCenter(CameraClass *camera, const Vector3 *c
 			return;
 		}
 
+		Bool gxDidStrip = false;
 		if (abs(deltaY) > CENTER_LIMIT) {
 			if (m_map->setDrawOrg(m_map->getDrawOrgX(), newOrgY)) {
+				// GeneralsX @diag author 23/11/2026 Only the newly exposed
+				// Y strip is rewritten.
+				++s_gxDiagCenterStripY;
+				gxDidStrip = true;
+				if (IABS(deltaX) > s_gxDiagCenterMaxDeltaX) s_gxDiagCenterMaxDeltaX = IABS(deltaX);
+				if (IABS(deltaY) > s_gxDiagCenterMaxDeltaY) s_gxDiagCenterMaxDeltaY = IABS(deltaY);
 				Int minY = 0;
 				Int maxY = 0;
 				m_originY += deltaY;
@@ -1913,6 +2016,12 @@ void HeightMapRenderObjClass::updateCenter(CameraClass *camera, const Vector3 *c
 			m_doXNextTime = false;
 			newOrgX = m_map->getDrawOrgX() + deltaX;
 			if (m_map->setDrawOrg(newOrgX, m_map->getDrawOrgY())) {
+				// GeneralsX @diag author 23/11/2026 Only the newly exposed
+				// X strip is rewritten.
+				++s_gxDiagCenterStripX;
+				gxDidStrip = true;
+				if (IABS(deltaX) > s_gxDiagCenterMaxDeltaX) s_gxDiagCenterMaxDeltaX = IABS(deltaX);
+				if (IABS(deltaY) > s_gxDiagCenterMaxDeltaY) s_gxDiagCenterMaxDeltaY = IABS(deltaY);
 				Int minX = 0;
 				Int maxX = 0;
 				m_originX += deltaX;
@@ -1936,6 +2045,14 @@ void HeightMapRenderObjClass::updateCenter(CameraClass *camera, const Vector3 *c
 					updateBlock(minX,0,maxX, m_y-1, m_map, pLightsIterator);
 				}
 			}
+		}
+		// GeneralsX @diag author 23/11/2026 Neither strip rewrote anything:
+		// the origin moved by 2 cells or less, so this updateCenter() call
+		// cost the frustum pre-pass and the tree/prop/bridge updates but no
+		// terrain vertices.
+		if (!gxDidStrip)
+		{
+			++s_gxDiagCenterNoop;
 		}
 	}
 	m_updating = false;

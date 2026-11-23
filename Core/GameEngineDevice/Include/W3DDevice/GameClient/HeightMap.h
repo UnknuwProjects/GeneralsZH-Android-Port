@@ -92,6 +92,15 @@ public:
 	// the terrain-center recompute is really running every frame.
 	static void takeDiagTerrainCounts(UnsignedInt64 &centerCalls, UnsignedInt64 &blockCalls, UnsignedInt64 &blockCells);
 
+	// GeneralsX @diag author 23/11/2026 Which branch updateCenter() took
+	// (full rewrite, big origin jump, Y/X strip, or nothing), the largest
+	// origin moves seen, how often the draw size changed, and the camera
+	// pitch range. Read and reset by W3DView.cpp's [GX-PERF-GATE] window,
+	// so a device log can name the trigger behind a per-frame full
+	// rewrite. Pitch comes back in radians; when updateCenter() never ran
+	// in the window, all branch counts are zero and the pitch is 0.0..0.0.
+	static void takeDiagCenterCounts(UnsignedInt64 &full, UnsignedInt64 &bigJump, UnsignedInt64 &stripY, UnsignedInt64 &stripX, UnsignedInt64 &noop, Int &maxDeltaX, Int &maxDeltaY, UnsignedInt64 &sizeChanges, Real &minPitchRad, Real &maxPitchRad);
+
 protected:
 	Int *m_extraBlendTilePositions;	///<array holding x,y tile positions of all extra blend tiles. (used for 3 textures per tile).
 	Int m_numExtraBlendTiles;		///<number of blend tiles in m_extraBlendTilePositions.

@@ -1405,6 +1405,36 @@ static double s_gxDiagTerrainUs = 0;
 static UnsignedInt s_gxDiagViewFrames = 0;
 static UnsignedInt s_gxDiagTerrainCalls = 0;
 
+// GeneralsX @diag author 23/11/2026 Name the trigger behind the terrain
+// recompute. The 1.0.0 device log still shows updateCenter() rewriting the
+// whole visible window every frame in-game (159,201 cells), and the code
+// alone cannot say why: the camera may really be moving, the gate's exact
+// comparison may be defeated by shake noise, or the draw size may be
+// flip-flopping at the 37-degree pitch threshold (see takeDiagCenterCounts
+// in HeightMap.cpp for the updateCenter side). These counters are read and
+// reset with the [GX-PERF-VIEW] window and printed as one [GX-PERF-GATE]
+// line per second, so a device log answers it on its own:
+//   skip/full/changed -- what the gate decided (they sum to terrainCalls);
+//   posDMax/rotDMax -- how far the camera actually moved on the runs that
+//     were not skipped: largest pivot/translation move in world units, and
+//     largest rotation-matrix element change;
+//   scroll/shake/shaker/zoomSet/pivotSet/slaved/recalc -- in how many of
+//     the window's frames each per-frame camera mover was active.
+// Plain integer adds and a few float compares per frame, so this costs
+// nothing next to the terrain work.
+static UnsignedInt s_gxDiagGateSkipped = 0;
+static UnsignedInt s_gxDiagGateFull = 0;
+static UnsignedInt s_gxDiagGateChanged = 0;
+static Real s_gxDiagGatePosDMax = 0.0f;
+static Real s_gxDiagGateRotDMax = 0.0f;
+static UnsignedInt s_gxDiagFramesScrolling = 0;
+static UnsignedInt s_gxDiagFramesShake = 0;
+static UnsignedInt s_gxDiagFramesShaker = 0;
+static UnsignedInt s_gxDiagFramesZoomSettle = 0;
+static UnsignedInt s_gxDiagFramesPivotSettle = 0;
+static UnsignedInt s_gxDiagFramesSlaved = 0;
+static UnsignedInt s_gxDiagFramesRecalc = 0;
+
 static void gxDiagTraceViewUpdate()
 {
 	static std::chrono::steady_clock::time_point s_windowStart = std::chrono::steady_clock::now();
@@ -1429,6 +1459,50 @@ static void gxDiagTraceViewUpdate()
 			(double)centerCalls / frames,
 			(double)blockCalls / frames,
 			(double)blockCells / frames);
+
+		// GeneralsX @diag author 23/11/2026 Same window as the [GX-PERF-VIEW]
+		// line above: what the terrain gate decided, how far the camera moved
+		// when it ran, and which branch updateCenter() took. Read the two
+		// lines together: skip>0 with changed=0 means the camera was still
+		// and the gate worked; changed>0 with a small posDMax means the
+		// camera only jitters and the gate thresholds are still too tight;
+		// cFull>0 with sizeChg>0 means the draw size kept flipping;
+		// cBig>0 with a large dMax means the computed origin really jumped.
+		UnsignedInt64 gxCenterFull = 0, gxCenterBig = 0, gxCenterStripY = 0, gxCenterStripX = 0, gxCenterNoop = 0, gxSizeChanges = 0;
+		Int gxCenterMaxDeltaX = 0, gxCenterMaxDeltaY = 0;
+		Real gxCenterMinPitchRad = 0.0f, gxCenterMaxPitchRad = 0.0f;
+		HeightMapRenderObjClass::takeDiagCenterCounts(gxCenterFull, gxCenterBig, gxCenterStripY, gxCenterStripX, gxCenterNoop, gxCenterMaxDeltaX, gxCenterMaxDeltaY, gxSizeChanges, gxCenterMinPitchRad, gxCenterMaxPitchRad);
+
+		GX_PERF_TRACE("[GX-PERF-GATE] frames=%u skip=%u full=%u changed=%u posDMax=%.2f rotDMax=%.4f pitchDeg=%.1f..%.1f sizeChg=%.0f cFull=%.0f cBig=%.0f cStripY=%.0f cStripX=%.0f cNoop=%.0f dMax=%d,%d scroll=%u shake=%u shaker=%u zoomSet=%u pivotSet=%u slaved=%u recalc=%u\n",
+			s_gxDiagViewFrames,
+			s_gxDiagGateSkipped,
+			s_gxDiagGateFull,
+			s_gxDiagGateChanged,
+			(double)s_gxDiagGatePosDMax,
+			(double)s_gxDiagGateRotDMax,
+			(double)RAD_TO_DEGF(gxCenterMinPitchRad),
+			(double)RAD_TO_DEGF(gxCenterMaxPitchRad),
+			(double)gxSizeChanges,
+			(double)gxCenterFull,
+			(double)gxCenterBig,
+			(double)gxCenterStripY,
+			(double)gxCenterStripX,
+			(double)gxCenterNoop,
+			gxCenterMaxDeltaX,
+			gxCenterMaxDeltaY,
+			s_gxDiagFramesScrolling,
+			s_gxDiagFramesShake,
+			s_gxDiagFramesShaker,
+			s_gxDiagFramesZoomSettle,
+			s_gxDiagFramesPivotSettle,
+			s_gxDiagFramesSlaved,
+			s_gxDiagFramesRecalc);
+
+		s_gxDiagGateSkipped = s_gxDiagGateFull = s_gxDiagGateChanged = 0;
+		s_gxDiagGatePosDMax = s_gxDiagGateRotDMax = 0.0f;
+		s_gxDiagFramesScrolling = s_gxDiagFramesShake = s_gxDiagFramesShaker = 0;
+		s_gxDiagFramesZoomSettle = s_gxDiagFramesPivotSettle = 0;
+		s_gxDiagFramesSlaved = s_gxDiagFramesRecalc = 0;
 
 		s_windowStart = now;
 		s_gxDiagViewUpdateUs = s_gxDiagTerrainUs = 0.0;
@@ -1660,12 +1734,19 @@ void W3DView::update()
 	//
 	if (m_shakeIntensity > 0.01f)
 	{
+		// GeneralsX @diag author 23/11/2026 Count the frames the old shake
+		// keeps the camera dirty for the [GX-PERF-GATE] window.
+		++s_gxDiagFramesShake;
 		m_recalcCamera = true;
 	}
 
 	//Process New C3 Camera Shaker system
 	if (CameraShakerSystem.IsCameraShaking())
 	{
+		// GeneralsX @diag author 23/11/2026 Count the frames a shaker is
+		// active: while one runs, buildCameraTransform() folds a fresh
+		// random wobble into the camera transform every frame.
+		++s_gxDiagFramesShaker;
 		m_recalcCamera = true;
 	}
 
@@ -1699,6 +1780,13 @@ void W3DView::update()
 
 		const Real scrollLenSqr = m_scrollAmount.lengthSqr();
 		const Bool isScrolling = scrollLenSqr > FLT_EPSILON;
+		// GeneralsX @diag author 23/11/2026 Count the scrolling frames for
+		// the [GX-PERF-GATE] window: scrolling is the one mover that
+		// legitimately rewrites terrain every frame.
+		if (isScrolling)
+		{
+			++s_gxDiagFramesScrolling;
+		}
 		const Bool isScrollingTooFast = scrollLenSqr >= m_scrollAmountCutoffSqr;
 		const Bool isWithinHeightConstraints = isWithinCameraHeightConstraints();
 
@@ -1721,11 +1809,17 @@ void W3DView::update()
 
 			if (zoomCameraToDesiredHeight())
 			{
+				// GeneralsX @diag author 23/11/2026 Count the frames the
+				// zoom is still settling for the [GX-PERF-GATE] window.
+				++s_gxDiagFramesZoomSettle;
 				isZoomingOrMovingPivot = true;
 			}
 
 			if (movePivotToGround())
 			{
+				// GeneralsX @diag author 23/11/2026 Count the frames the
+				// pivot is still settling for the [GX-PERF-GATE] window.
+				++s_gxDiagFramesPivotSettle;
 				isZoomingOrMovingPivot = true;
 			}
 
@@ -1765,6 +1859,19 @@ void W3DView::update()
 	// (gth) C&C3 if m_isCameraSlaved then force the camera to update each frame
 	if (m_recalcCamera || m_isCameraSlaved)
 	{
+		// GeneralsX @diag author 23/11/2026 Count the frames the camera was
+		// slaved or flagged for recalculation, for the [GX-PERF-GATE]
+		// window: this is the call that rebuilds the transform and runs
+		// updateTerrain(), so it has to be 1.0 per frame in-game for the
+		// terrain rewrite to be possible at all.
+		if (m_isCameraSlaved)
+		{
+			++s_gxDiagFramesSlaved;
+		}
+		if (m_recalcCamera)
+		{
+			++s_gxDiagFramesRecalc;
+		}
 		updateCameraTransform();
 		m_recalcCamera = false;
 	}
@@ -3898,20 +4005,64 @@ void W3DView::updateTerrain()
 	// GeneralsX @performance Android port 23/11/2026 Skip the recenter
 	// when the camera has not actually moved since the last terrain
 	// update: updateCenter() decides what to rewrite from the camera
-	// transform and pivot, so with both identical -- and no full update
+	// transform and pivot, so with both unchanged -- and no full update
 	// pending -- it would rewrite nothing, yet the call itself costs the
 	// frustum pre-pass and the tree/prop/bridge updates every frame. The
 	// gate sits after setTerrainDrawSize on purpose: a size change sets
-	// m_needFullUpdate, so a resize still runs. Exact comparison is
-	// deliberate: any real camera move, however small, runs the update,
-	// and the zoom snap below is what makes the transform stop changing
-	// once the camera has settled.
+	// m_needFullUpdate, so a resize still runs.
+	//
+	// The comparison is a threshold, not exact equality. The terrain
+	// origin is quantized to whole map cells (one cell is 10 world units)
+	// and updateCenter() itself ignores origin moves of 2 cells or less
+	// (CENTER_LIMIT), so a camera move below one world unit cannot change
+	// anything updateCenter() would rewrite. Exact equality never held
+	// in-game: the camera shaker folds a fresh random wobble into the
+	// transform on every buildCameraTransform() call while any shaker is
+	// active, and the old shake offsets flip sign every step, so the
+	// transform differed by a hair every frame and the gate never fired.
+	// A position move of a unit, or a rotation change of 0.002 rad, shifts
+	// the drawn origin by at most one cell, still inside that dead zone,
+	// while any real scroll, zoom or rotate moves it by far more and still
+	// runs the update. The stored transform and pivot are only refreshed
+	// on a run, so a slow steady drift still adds up and triggers one.
 	const Matrix3D &gxCameraTransform = m_3DCamera->Get_Transform();
+	Real gxPosDelta = 0.0f;
+	Real gxRotDelta = 0.0f;
+	if (m_gxTerrainHaveLastCamera)
+	{
+		Real gxD = fabs(cameraPivot.X - m_gxTerrainLastCameraPivot.X);
+		if (gxD > gxPosDelta) gxPosDelta = gxD;
+		gxD = fabs(cameraPivot.Y - m_gxTerrainLastCameraPivot.Y);
+		if (gxD > gxPosDelta) gxPosDelta = gxD;
+		gxD = fabs(cameraPivot.Z - m_gxTerrainLastCameraPivot.Z);
+		if (gxD > gxPosDelta) gxPosDelta = gxD;
+
+		const Vector3 gxLastTrans = m_gxTerrainLastCameraTransform.Get_Translation();
+		const Vector3 gxTrans = gxCameraTransform.Get_Translation();
+		gxD = fabs(gxTrans.X - gxLastTrans.X);
+		if (gxD > gxPosDelta) gxPosDelta = gxD;
+		gxD = fabs(gxTrans.Y - gxLastTrans.Y);
+		if (gxD > gxPosDelta) gxPosDelta = gxD;
+		gxD = fabs(gxTrans.Z - gxLastTrans.Z);
+		if (gxD > gxPosDelta) gxPosDelta = gxD;
+
+		for (Int gxRow = 0; gxRow < 3; ++gxRow)
+		{
+			for (Int gxCol = 0; gxCol < 3; ++gxCol)
+			{
+				gxD = fabs(gxCameraTransform[gxRow][gxCol] - m_gxTerrainLastCameraTransform[gxRow][gxCol]);
+				if (gxD > gxRotDelta) gxRotDelta = gxD;
+			}
+		}
+	}
 	if (!TheTerrainRenderObject->doesNeedFullUpdate()
 		&& m_gxTerrainHaveLastCamera
-		&& m_gxTerrainLastCameraPivot == cameraPivot
-		&& m_gxTerrainLastCameraTransform == gxCameraTransform)
+		&& gxPosDelta < 1.0f
+		&& gxRotDelta < 0.002f)
 	{
+		// GeneralsX @diag author 23/11/2026 Count the skipped recenters
+		// for the [GX-PERF-GATE] window.
+		++s_gxDiagGateSkipped;
 		if (it)
 		{
 			W3DDisplay::m_3DScene->destroyLightsIterator(it);
@@ -3920,6 +4071,20 @@ void W3DView::updateTerrain()
 		s_gxDiagTerrainUs += std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - gxDiagStart).count();
 		++s_gxDiagTerrainCalls;
 		return;
+	}
+	// GeneralsX @diag author 23/11/2026 Count why the gate let this one
+	// through: a pending full update, or a camera move past the threshold.
+	// The deltas are the largest seen this window, so the log shows how
+	// far the camera actually moved when the gate fired.
+	if (TheTerrainRenderObject->doesNeedFullUpdate())
+	{
+		++s_gxDiagGateFull;
+	}
+	else
+	{
+		++s_gxDiagGateChanged;
+		if (gxPosDelta > s_gxDiagGatePosDMax) s_gxDiagGatePosDMax = gxPosDelta;
+		if (gxRotDelta > s_gxDiagGateRotDMax) s_gxDiagGateRotDMax = gxRotDelta;
 	}
 	m_gxTerrainLastCameraTransform = gxCameraTransform;
 	m_gxTerrainLastCameraPivot = cameraPivot;
