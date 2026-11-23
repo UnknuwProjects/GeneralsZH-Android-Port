@@ -28,9 +28,12 @@ android {
             // Android 9+ and key rotation. Play Protect expects them all on a
             // sideloaded APK. AGP already enables them by default; pinning
             // them here means a future AGP upgrade cannot silently drop one.
+            // Note the v3 name: AGP 8.5.2 has no v3SigningEnabled (only
+            // enableV3Signing) — the v3SigningEnabled spelling fails the
+            // build at evaluation time, run 45145128149 proved it.
             v1SigningEnabled true
             v2SigningEnabled true
-            v3SigningEnabled true
+            enableV3Signing true
         }
         release {
             // GeneralsX @build Android port 23/11/2026 The UnknuwProjects
@@ -45,7 +48,7 @@ android {
             keyPassword System.getenv('ANDROID_KEY_PASSWORD') ?: 'android'
             v1SigningEnabled true
             v2SigningEnabled true
-            v3SigningEnabled true
+            enableV3Signing true
         }
     }
 
