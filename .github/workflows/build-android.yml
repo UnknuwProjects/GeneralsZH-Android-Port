@@ -561,18 +561,91 @@ jobs:
             exit 1
           fi
 
+            # GeneralsX @build Android port 23/11/2026 Release notes come from the
+      # commits since the previous release tag, so What's New lists what
+      # actually changed instead of a hand-typed summary that can go stale
+      # or miss a fix. The manual release_notes input, when given, goes on
+      # top as the intro. A hotfix re-run of the same version regenerates
+      # the same range, so the fix commit shows up in the updated notes.
+      - name: Build release notes from commits
+        id: notes
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.create_release }}
+        env:
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+        run: |
+          set -euo pipefail
+          VERSION="v${{ inputs.version_name }}"
+          git fetch --tags origin
+          PREV="$(git tag --merged HEAD --sort=-v:refname | grep -Fvx "${VERSION}" | head -1 || true)"
+          {
+            echo "What's new in ${VERSION} — vs ${PREV:-the first release}"
+            echo ""
+            if [ -n "${RELEASE_NOTES}" ]; then
+              printf '%s\n\n' "${RELEASE_NOTES}"
+            fi
+            echo "Changes"
+            if [ -n "${PREV}" ]; then
+              git log "${PREV}..HEAD" --pretty=format:'- %s (%h)'
+            else
+              git log --pretty=format:'- %s (%h)' -30
+            fi
+            echo ""
+          } > release-notes.md
+          echo "Previous tag: ${PREV:-none}"
+          cat release-notes.md
+
+            # GeneralsX @build Android port 23/11/2026 The release tag must point
+      # at the commit that was actually built. action-gh-release creates the
+      # tag on the repo's default branch when it does not exist yet, so the
+      # v1.0.0 tag landed on main's old head instead of this build's commit.
+      # Point it here first (and again on a hotfix re-run of the same
+      # version), so the tag always means "the code in this release".
+      - name: Move release tag to this commit
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.create_release }}
+        run: |
+          set -euo pipefail
+          git tag -f "v${{ inputs.version_name }}" "${{ github.sha }}"
+          git push -f origin "v${{ inputs.version_name }}"
+
       - name: Publish GitHub Release
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.create_release }}
         uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ inputs.version_name }}
           name: v${{ inputs.version_name }}
-          body: ${{ inputs.release_notes }}
+          target_commitish: ${{ github.sha }}
+          body_path: release-notes.md
           files: |
             ${{ steps.locate.outputs.path }}
             symbols/libmain-run${{ github.run_number }}.symbols.txt.gz
           generate_release_notes: true
           make_latest: true
+
+      # GeneralsX @build Android port 23/11/2026 A hotfix re-run of the same
+      # version uploads a new run-numbered APK, so the old one would sit
+      # next to it in the same release. Keep only the newest APK and the
+      # newest symbol table in each release, the same rule as the
+      # Actions-artifact cleanup above.
+      - name: Drop superseded assets from this release
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.create_release }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          KEEP_APK="${{ steps.locate.outputs.path }}"
+          KEEP_SYM="libmain-run${{ github.run_number }}.symbols.txt.gz"
+          gh api "repos/${{ github.repository }}/releases/tags/v${{ inputs.version_name }}" \
+            --jq '.assets[] | [.id, .name] | @tsv' \
+          | while IFS=$'\t' read -r asset_id asset_name; do
+              case "${asset_name}" in
+                GeneralsXZH-android-run*.apk|libmain-run*.symbols.txt.gz)
+                  if [ "${asset_name}" != "${KEEP_APK}" ] && [ "${asset_name}" != "${KEEP_SYM}" ]; then
+                    echo "Deleting superseded release asset ${asset_name}"
+                    gh api -X DELETE "repos/${{ github.repository }}/releases/assets/${asset_id}" || true
+                  fi
+                  ;;
+              esac
+            done
 
       - name: Collect dependency build logs for diagnosis
         if: always()
