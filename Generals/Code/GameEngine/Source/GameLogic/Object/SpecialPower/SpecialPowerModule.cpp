@@ -96,11 +96,17 @@ SpecialPowerModule::SpecialPowerModule( Thing *thing, const ModuleData *moduleDa
 									: BehaviorModule( thing, moduleData )
 {
 
-#if RETAIL_COMPATIBLE_CRC
+	// GeneralsX @bugfix Android port 01/11/2026 Issue #62: 0, as in the retail game, in this build too.
+	// Upstream starts non-retail builds at 0xFFFFFFFF ("not ready until something sets it"), which
+	// only the constructor overwrites, and only for an object that is neither under construction nor
+	// shared-n-sync. A building the player builds is under construction when it is created, so its
+	// non-superweapon powers -- the Strategy Center's battle plans, the Command Center's CIA
+	// Intelligence and spy satellite -- were never ready: the buttons only showed their tooltips,
+	// and the hotkeys did nothing either. Zero Hour had the same line fixed on 15/09 (60680e08);
+	// the base game kept it. The crash that motivated the sentinel (#1218, a missile building told
+	// to launch before its update module found its power) is guarded in
+	// MissileLauncherBuildingUpdate::initiateIntentToDoSpecialPower instead.
 	m_availableOnFrame = 0;
-#else
-	m_availableOnFrame = 0xFFFFFFFF;
-#endif
 	m_pausedCount = 0;
 	m_pausedOnFrame = 0;
 	m_pausedPercent = 0.0f;
@@ -714,6 +720,12 @@ void SpecialPowerModule::xfer( Xfer *xfer )
 
 	// available on frame
 	xfer->xferUnsignedInt( &m_availableOnFrame );
+	// GeneralsX @bugfix Android port 01/11/2026 Issue #62: a game saved by a build with the
+	// never-ready start frame (see the constructor) carries that 0xFFFFFFFF in its powers. The retail
+	// game never writes it -- a power is due at a real frame -- so on load it means "ready", as the
+	// constructor now starts it, and the powers of such a save work again.
+	if ( xfer->getXferMode() == XFER_LOAD && m_availableOnFrame == 0xFFFFFFFF )
+		m_availableOnFrame = 0;
 
 	// paused by script
 	xfer->xferInt( &m_pausedCount );

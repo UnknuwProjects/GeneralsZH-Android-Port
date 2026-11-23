@@ -37,6 +37,7 @@
     <string name="setup_folder_issue_bad_header">%1$s не схожий на коректний архів гри</string>
     <string name="setup_folder_issue_missing_data">У %1$s бракує очікуваних даних гри — ймовірно, неповна копія</string>
     <string name="setup_folder_issue_no_base_game">Відсутні дані базової гри Generals:%1$s\n\nАбо вкажіть папку, де вони вже є — кнопка «Папка базової Generals…» нижче (зазвичай ZH_Generals або Command and Conquer Generals).</string>
+    <string name="setup_folder_issue_no_ai_scripts">Немає файлу Data\\Scripts\\SkirmishScripts.scb — комп’ютерні суперники в сутичці нічого не робитимуть. Скопіюйте теку гри повністю, разом із текою Data, а не лише файли .big.</string>
     <string name="setup_status_logs_note">Логи краху/рушія зберігаються у приватному сховищі застосунку і доступні лише через кнопку «Переглянути логи» вище — Android навмисно приховує їх від звичайних файлових менеджерів (це стандартна пісочниця Android, а не особливість цього застосунку).</string>
 
     <!-- SetupActivity: Language card -->
@@ -457,7 +458,7 @@
     <string name="mods_home_enabled">Увімкнено модів: %1$d</string>
     <string name="mods_home_all_off">Встановлено модів: %1$d, усі вимкнені</string>
     <string name="mods_import_rar">Архіви RAR і 7z та інсталятори .exe на Android не відкриваються. Спершу розпакуйте архів файловим менеджером (наприклад, ZArchiver) й імпортуйте розпаковану папку або запакуйте її в .zip.</string>
-    <string name="mods_import_unsupported">Виберіть папку, файл .big або архів .zip.</string>
+    <string name="mods_import_unsupported">Виберіть папку, файл .big (.gib) або архів .zip.</string>
     <string name="mods_import_full_game">Це ціла гра, а не мод: у ній власні архіви гри (INI, W3D, Textures). Виберіть її папку як папку гри на головній.</string>
     <string name="mods_import_no_big">Не знайдено жодного архіву .big. Мод для цього екрана — папка з файлами .big.</string>
     <string name="mods_card_ok">Сумісний з іншими увімкненими модами</string>
@@ -504,4 +505,19 @@
     <string name="setup_sources_zh_art_missing">У теці Zero Hour немає TexturesZH.big, тому Generals не може взяти звідти картинки: %1$s</string>
     <string name="setup_sources_base_ok">Архіви оригінальної Generals для Zero Hour: %1$s</string>
     <string name="setup_sources_base_auto">Zero Hour шукає архіви оригінальної Generals у своїй теці (ZH_Generals) або поруч із нею; якщо вони деінде, виберіть теку нижче.</string>
+    <string name="setup_langpack_offer_title">Грати мовою: %1$s?</string>
+    <string name="setup_langpack_offer_message">Текст самої гри англійською. Для цієї гри є переклад (%1$s): завантажити його (кілька сотень кілобайт) і перемкнути на нього текст гри? Потім це можна змінити в пункті «Мова тексту гри».</string>
+    <string name="setup_langpack_offer_message_present">Переклад (%1$s) уже є в теці цієї гри. Перемкнути на нього текст гри? Потім це можна змінити в пункті «Мова тексту гри».</string>
+    <string name="setup_langpack_offer_download">Завантажити й увімкнути</string>
+    <string name="setup_langpack_offer_switch">Увімкнути</string>
+    <string name="setup_langpack_offer_no">Залишити англійську</string>
+    <string name="online_datapacks_need_storage">Лаунчер не має доступу до файлів телефона, тож мережеві дані нікуди зберегти. На екрані, що відкриється, дозвольте Generals «Доступ до всіх файлів» і знову натисніть «Оновити».</string>
+    <string name="setup_status_no_storage_access">Немає доступу до файлів телефона: гра не зможе зберігатися, а мережеві дані не завантажаться. Натисніть «Обрати папку з грою» й дозвольте «Доступ до всіх файлів».</string>
+    <string name="setup_langpack_update_title">Оновлення перекладу</string>
+    <string name="setup_langpack_update_message">Для цієї гри вийшла нова версія перекладу (%1$s). Оновити зараз?</string>
+    <string name="setup_langpack_update_yes">Оновити</string>
+    <string name="setup_langpack_update_no">Не зараз</string>
+    <string name="setup_langpack_update_done">Переклад оновлено: %1$s</string>
+    <string name="setup_switch_subtitles">Показувати субтитри</string>
+    <string name="setup_switch_subtitles_desc">Текст того, що кажуть у місіях і у «Випробуванні генералів»: переговори по радіо, підколки генералів. Ці тексти в грі є, але вона їх ніколи не показувала. Діє з наступного запуску гри. Типово увімкнено, якщо текст гри мовою, яка у вас встановлена.</string>
 </resources>

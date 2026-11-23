@@ -37,6 +37,7 @@
     <string name="setup_folder_issue_bad_header">%1$s شبیه یک آرشیو معتبر بازی نیست</string>
     <string name="setup_folder_issue_missing_data">در %1$s داده‌های موردانتظار بازی کم است — احتمالاً یک نسخهٔ ناقص</string>
     <string name="setup_folder_issue_no_base_game">داده‌های بازی پایه Generals موجود نیست:%1$s\n\nیا پوشه‌ای را که از قبل آن‌ها را دارد مشخص کنید — دکمهٔ «پوشهٔ بازی پایه Generals…» در پایین (معمولاً ZH_Generals یا Command and Conquer Generals).</string>
+    <string name="setup_folder_issue_no_ai_scripts">فایل Data\\Scripts\\SkirmishScripts.scb وجود ندارد — حریفان رایانه‌ای در نبردهای تمرینی کاری نمی‌کنند. کل پوشهٔ بازی را همراه با پوشهٔ Data کپی کنید، نه فقط فایل‌های .big.</string>
     <string name="setup_status_logs_note">گزارش‌های خرابی/موتور در حافظه خصوصی این برنامه ذخیره می‌شوند و فقط از طریق «مشاهده گزارش‌ها» در بالا قابل دسترسی هستند — اندروید عمداً آن‌ها را از مدیرهای فایل معمولی پنهان می‌کند (این رفتار استاندارد سندباکس اندروید است، نه ویژگی خاص این برنامه).</string>
 
     <!-- SetupActivity: Language card -->
@@ -457,7 +458,7 @@
     <string name="mods_home_enabled">مادهای روشن: %1$d</string>
     <string name="mods_home_all_off">نصب‌شده: %1$d، همه خاموش</string>
     <string name="mods_import_rar">آرشیوهای RAR و 7z و نصب‌کننده‌های .exe در اندروید باز نمی‌شوند. ابتدا آن را با یک مدیر فایل (مثلاً ZArchiver) از حالت فشرده خارج کنید و پوشه را وارد کنید، یا آن را به .zip تبدیل کنید.</string>
-    <string name="mods_import_unsupported">یک پوشه، فایل .big یا آرشیو .zip انتخاب کنید.</string>
+    <string name="mods_import_unsupported">یک پوشه، فایل .big (.gib) یا آرشیو .zip انتخاب کنید.</string>
     <string name="mods_import_full_game">این یک بازی کامل است، نه ماد: آرشیوهای خود بازی (INI، W3D، Textures) را دارد. به جای آن، پوشه‌اش را در صفحه اصلی به‌عنوان پوشه بازی انتخاب کنید.</string>
     <string name="mods_import_no_big">هیچ آرشیو .big پیدا نشد. ماد برای این صفحه پوشه‌ای با فایل‌های .big است.</string>
     <string name="mods_card_ok">با دیگر مادهای روشن کار می‌کند</string>
@@ -504,4 +505,19 @@
     <string name="setup_sources_zh_art_missing">پوشهٔ Zero Hour فایل TexturesZH.big ندارد، پس Generals نمی‌تواند تصویری از آن بگیرد: %1$s</string>
     <string name="setup_sources_base_ok">بایگانی‌های Generals اصلی برای Zero Hour: %1$s</string>
     <string name="setup_sources_base_auto">Zero Hour بایگانی‌های Generals اصلی را در پوشهٔ خودش (ZH_Generals) یا کنار آن جست‌وجو می‌کند؛ اگر جای دیگری هستند، پوشه‌ای را در پایین انتخاب کنید.</string>
+    <string name="setup_langpack_offer_title">بازی به زبان %1$s؟</string>
+    <string name="setup_langpack_offer_message">متن خود بازی انگلیسی است. ترجمه‌ای (%1$s) برای این بازی هست: دانلودش کنیم (چند صد کیلوبایت) و متن بازی را به آن تغییر دهیم؟ بعداً می‌توان از «زبان متن بازی» تغییرش داد.</string>
+    <string name="setup_langpack_offer_message_present">ترجمه‌ای (%1$s) از قبل در پوشهٔ این بازی هست. متن بازی را به آن تغییر دهیم؟ بعداً می‌توان از «زبان متن بازی» تغییرش داد.</string>
+    <string name="setup_langpack_offer_download">دانلود و تغییر</string>
+    <string name="setup_langpack_offer_switch">تغییر</string>
+    <string name="setup_langpack_offer_no">انگلیسی بماند</string>
+    <string name="online_datapacks_need_storage">لانچر به فایل‌های گوشی دسترسی ندارد، پس داده‌های آنلاین ذخیره نمی‌شوند. در صفحه‌ای که باز می‌شود به Generals «دسترسی به همهٔ فایل‌ها» بدهید و دوباره «به‌روزرسانی» را بزنید.</string>
+    <string name="setup_status_no_storage_access">دسترسی به فایل‌های گوشی نیست: بازی نمی‌تواند ذخیره کند و داده‌های آنلاین دانلود نمی‌شوند. «انتخاب پوشه بازی» را بزنید و «دسترسی به همهٔ فایل‌ها» را بدهید.</string>
+    <string name="setup_langpack_update_title">به‌روزرسانی ترجمه</string>
+    <string name="setup_langpack_update_message">نسخهٔ تازه‌تری از ترجمه (%1$s) برای این بازی هست. الان به‌روزرسانی شود؟</string>
+    <string name="setup_langpack_update_yes">به‌روزرسانی</string>
+    <string name="setup_langpack_update_no">حالا نه</string>
+    <string name="setup_langpack_update_done">ترجمه به‌روز شد: %1$s</string>
+    <string name="setup_switch_subtitles">نمایش زیرنویس</string>
+    <string name="setup_switch_subtitles_desc">متن آنچه در مأموریت‌ها و چالش ژنرال‌ها گفته می‌شود: مکالمه‌های بی‌سیم، طعنه‌های ژنرال‌ها. این متن‌ها در بازی هست ولی هیچ‌وقت نشان داده نمی‌شد. از اجرای بعدی بازی اعمال می‌شود. اگر متن بازی به زبانی باشد که نصب دارید، به‌طور پیش‌فرض روشن است.</string>
 </resources>

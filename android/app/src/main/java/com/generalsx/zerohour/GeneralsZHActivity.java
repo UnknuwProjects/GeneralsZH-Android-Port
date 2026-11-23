@@ -174,6 +174,7 @@ public class GeneralsZHActivity extends SDLActivity {
         // screen, in their order, for the game being started (ModManager, GXManagedMods.h). Written
         // here so both engines, a replay and every way of starting the game read the same list.
         ModManager.writeActiveList(this);
+        SetupActivity.writeSubtitlesMarker(this);
         writeZeroHourArtPath();
         Intent intent = getIntent();
         String replay = intent != null ? intent.getStringExtra(EXTRA_REPLAY) : null;
@@ -182,6 +183,11 @@ public class GeneralsZHActivity extends SDLActivity {
         }
         args.add("-replay");
         args.add(replay);
+        // GeneralsX @performance Android port 25/10/2026 The network trace marker is the check's
+        // own: the engine keeps it to this replay and off any game played after it in the same run.
+        if (ReplayCheckActivity.traceTurnedOnByCheck(this)) {
+            args.add("-gxCheckTrace");
+        }
         int fastTo = intent.getIntExtra(EXTRA_FAST_TO, 0);
         if (fastTo != 0) {
             args.add("-gxFastTo");
@@ -443,6 +449,25 @@ public class GeneralsZHActivity extends SDLActivity {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) {
             applyGestureNavBackBehavior();
+            // GeneralsX @bugfix Android port 25/10/2026 Hide the bars again when the window gets its
+            // focus back. With BEHAVIOR_DEFAULT (kept for the back gesture, below) bars the system
+            // showed stay shown until the app hides them: after the notification shade was pulled
+            // down, the gesture bar stayed over the command bar until the game was restarted (4PDA,
+            // HyperOS 3 / Android 17). Again a moment later, once the shade's closing animation has
+            // handed the bars back.
+            hideSystemBars();
+            getWindow().getDecorView().postDelayed(this::hideSystemBars, 600);
+        }
+    }
+
+    private void hideSystemBars() {
+        if (!hasWindowFocus()) {
+            return;
+        }
+        WindowInsetsControllerCompat controller =
+            WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        if (controller != null) {
+            controller.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars());
         }
     }
 

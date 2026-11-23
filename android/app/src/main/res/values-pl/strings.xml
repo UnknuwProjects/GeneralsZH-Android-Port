@@ -37,6 +37,7 @@
     <string name="setup_folder_issue_bad_header">%1$s nie wygląda na prawidłowe archiwum gry</string>
     <string name="setup_folder_issue_missing_data">W %1$s brakuje oczekiwanych danych gry — prawdopodobnie niekompletna kopia</string>
     <string name="setup_folder_issue_no_base_game">Brak danych podstawowej gry Generals:%1$s\n\nAlbo wskaż folder, w którym już są — przycisk „Folder podstawowej gry Generals…” poniżej (zwykle ZH_Generals lub Command and Conquer Generals).</string>
+    <string name="setup_folder_issue_no_ai_scripts">Brak pliku Data\\Scripts\\SkirmishScripts.scb — przeciwnicy komputerowi nie będą nic robić w potyczkach. Skopiuj cały folder gry, razem z folderem Data, a nie tylko pliki .big.</string>
     <string name="setup_status_logs_note">Dzienniki awarii/silnika znajdują się w prywatnej pamięci tej aplikacji i są dostępne tylko przez „Wyświetl dzienniki” powyżej — Android celowo ukrywa je przed zwykłymi menedżerami plików (to standardowe piaskownicowanie Androida, a nie cecha specyficzna dla tej aplikacji).</string>
 
     <!-- SetupActivity: Language card -->
@@ -457,7 +458,7 @@
     <string name="mods_home_enabled">Włączone mody: %1$d</string>
     <string name="mods_home_all_off">Zainstalowano: %1$d, wszystkie wyłączone</string>
     <string name="mods_import_rar">Archiwów RAR i 7z ani instalatorów .exe nie da się otworzyć na Androidzie. Najpierw rozpakuj je menedżerem plików (np. ZArchiver) i zaimportuj folder albo spakuj go do .zip.</string>
-    <string name="mods_import_unsupported">Wybierz folder, plik .big lub archiwum .zip.</string>
+    <string name="mods_import_unsupported">Wybierz folder, plik .big (.gib) lub archiwum .zip.</string>
     <string name="mods_import_full_game">To cała gra, a nie mod: ma własne archiwa gry (INI, W3D, Textures). Wybierz jej folder jako folder gry na stronie głównej.</string>
     <string name="mods_import_no_big">Nie znaleziono żadnego archiwum .big. Mod dla tego ekranu to folder z plikami .big.</string>
     <string name="mods_card_ok">Działa z pozostałymi włączonymi modami</string>
@@ -504,4 +505,19 @@
     <string name="setup_sources_zh_art_missing">W folderze Zero Hour nie ma TexturesZH.big, więc Generals nie może wziąć z niego obrazów: %1$s</string>
     <string name="setup_sources_base_ok">Archiwa oryginalnego Generals dla Zero Hour: %1$s</string>
     <string name="setup_sources_base_auto">Zero Hour szuka archiwów oryginalnego Generals w swoim folderze (ZH_Generals) lub obok niego; jeśli są gdzie indziej, wybierz folder poniżej.</string>
+    <string name="setup_langpack_offer_title">Grać w języku: %1$s?</string>
+    <string name="setup_langpack_offer_message">Tekst samej gry jest po angielsku. Dla tej gry jest tłumaczenie (%1$s): pobrać je (kilkaset kilobajtów) i przełączyć na nie tekst gry? Można to później zmienić w „Język tekstów w grze”.</string>
+    <string name="setup_langpack_offer_message_present">Tłumaczenie (%1$s) jest już w folderze tej gry. Przełączyć na nie tekst gry? Można to później zmienić w „Język tekstów w grze”.</string>
+    <string name="setup_langpack_offer_download">Pobierz i przełącz</string>
+    <string name="setup_langpack_offer_switch">Przełącz</string>
+    <string name="setup_langpack_offer_no">Zostaw angielski</string>
+    <string name="online_datapacks_need_storage">Launcher nie ma dostępu do plików telefonu, więc danych sieciowych nie da się zapisać. Na ekranie, który się otworzy, zezwól Generals na „Dostęp do wszystkich plików”, a potem znów naciśnij „Aktualizuj”.</string>
+    <string name="setup_status_no_storage_access">Brak dostępu do plików telefonu: gra nie zapisze stanu, a dane sieciowe się nie pobiorą. Naciśnij „Wybierz folder gry” i zezwól na „Dostęp do wszystkich plików”.</string>
+    <string name="setup_langpack_update_title">Aktualizacja tłumaczenia</string>
+    <string name="setup_langpack_update_message">Dla tej gry jest nowsza wersja tłumaczenia (%1$s). Zaktualizować teraz?</string>
+    <string name="setup_langpack_update_yes">Aktualizuj</string>
+    <string name="setup_langpack_update_no">Nie teraz</string>
+    <string name="setup_langpack_update_done">Tłumaczenie zaktualizowane: %1$s</string>
+    <string name="setup_switch_subtitles">Pokazuj napisy</string>
+    <string name="setup_switch_subtitles_desc">Tekst tego, co mówią w misjach i w Wyzwaniu generałów: rozmowy przez radio, docinki generałów. Gra ma te teksty, ale nigdy ich nie pokazywała. Działa od następnego uruchomienia gry. Domyślnie włączone, jeśli tekst gry jest w zainstalowanym u ciebie języku.</string>
 </resources>

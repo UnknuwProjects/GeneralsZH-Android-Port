@@ -37,6 +37,7 @@
     <string name="setup_folder_issue_bad_header">%1$s ne ressemble pas à une archive de jeu valide</string>
     <string name="setup_folder_issue_missing_data">Il manque des données de jeu attendues dans %1$s — probablement une copie incomplète</string>
     <string name="setup_folder_issue_no_base_game">Données du jeu de base Generals manquantes :%1$s\n\nOu indiquez à Setup le dossier qui les contient déjà — le bouton « Dossier du jeu de base Generals… » ci-dessous (en général ZH_Generals ou Command and Conquer Generals).</string>
+    <string name="setup_folder_issue_no_ai_scripts">Data\\Scripts\\SkirmishScripts.scb est absent — les adversaires contrôlés par l’ordinateur ne feront rien en escarmouche. Copiez tout le dossier du jeu, avec son dossier Data, pas seulement les fichiers .big.</string>
     <string name="setup_status_logs_note">Les journaux de plantage/du moteur sont stockés dans le stockage privé de cette application et ne sont accessibles que via « Afficher les journaux » ci-dessus — Android les masque intentionnellement des gestionnaires de fichiers classiques (c\'est le fonctionnement standard du bac à sable Android, pas une particularité de cette application).</string>
 
     <!-- SetupActivity: Language card -->
@@ -457,7 +458,7 @@
     <string name="mods_home_enabled">Mods activés : %1$d</string>
     <string name="mods_home_all_off">Installés : %1$d, tous désactivés</string>
     <string name="mods_import_rar">Les archives RAR et 7z et les installateurs .exe ne s’ouvrent pas sur Android. Décompressez-la d’abord avec un gestionnaire de fichiers (par exemple ZArchiver) puis importez le dossier, ou recompressez-le en .zip.</string>
-    <string name="mods_import_unsupported">Choisissez un dossier, un fichier .big ou une archive .zip.</string>
+    <string name="mods_import_unsupported">Choisissez un dossier, un fichier .big (.gib) ou une archive .zip.</string>
     <string name="mods_import_full_game">Ceci est un jeu complet, pas un mod : il contient les archives propres au jeu (INI, W3D, Textures). Choisissez plutôt son dossier comme dossier du jeu sur l’accueil.</string>
     <string name="mods_import_no_big">Aucune archive .big trouvée. Un mod pour cet écran est un dossier contenant des fichiers .big.</string>
     <string name="mods_card_ok">Fonctionne avec les autres mods activés</string>
@@ -504,4 +505,19 @@
     <string name="setup_sources_zh_art_missing">Le dossier de Zero Hour n’a pas de TexturesZH.big, Generals ne peut donc pas y prendre d’images : %1$s</string>
     <string name="setup_sources_base_ok">Archives du Generals d’origine pour Zero Hour : %1$s</string>
     <string name="setup_sources_base_auto">Zero Hour cherche les archives du Generals d’origine dans son dossier (ZH_Generals) ou à côté ; si elles sont ailleurs, choisissez un dossier ci-dessous.</string>
+    <string name="setup_langpack_offer_title">Jouer en %1$s ?</string>
+    <string name="setup_langpack_offer_message">Le texte du jeu lui-même est en anglais. Une traduction (%1$s) existe pour ce jeu : la télécharger (quelques centaines de kilo-octets) et y passer le texte du jeu ? Cela se change ensuite dans « Langue des textes du jeu ».</string>
+    <string name="setup_langpack_offer_message_present">Une traduction (%1$s) se trouve déjà dans le dossier de ce jeu. Y passer le texte du jeu ? Cela se change ensuite dans « Langue des textes du jeu ».</string>
+    <string name="setup_langpack_offer_download">Télécharger et passer</string>
+    <string name="setup_langpack_offer_switch">Passer</string>
+    <string name="setup_langpack_offer_no">Garder l’anglais</string>
+    <string name="online_datapacks_need_storage">Le lanceur n’a pas accès aux fichiers du téléphone : les données en ligne ne peuvent pas être enregistrées. Sur l’écran qui s’ouvre, autorisez « Accès à tous les fichiers » pour Generals, puis appuyez de nouveau sur « Mettre à jour ».</string>
+    <string name="setup_status_no_storage_access">Aucun accès aux fichiers du téléphone : le jeu ne pourra pas sauvegarder et les données en ligne ne se téléchargeront pas. Appuyez sur « Sélectionner le dossier du jeu » et autorisez « Accès à tous les fichiers ».</string>
+    <string name="setup_langpack_update_title">Mise à jour de la traduction</string>
+    <string name="setup_langpack_update_message">Une version plus récente de la traduction (%1$s) est disponible pour ce jeu. La mettre à jour maintenant ?</string>
+    <string name="setup_langpack_update_yes">Mettre à jour</string>
+    <string name="setup_langpack_update_no">Plus tard</string>
+    <string name="setup_langpack_update_done">Traduction mise à jour : %1$s</string>
+    <string name="setup_switch_subtitles">Afficher les sous-titres</string>
+    <string name="setup_switch_subtitles_desc">Le texte de ce qui est dit dans les missions et le Défi des généraux : les échanges radio, les piques des généraux. Le jeu a ces textes mais ne les a jamais affichés. Prend effet au prochain lancement du jeu. Activé par défaut si le texte du jeu est dans une langue installée chez vous.</string>
 </resources>

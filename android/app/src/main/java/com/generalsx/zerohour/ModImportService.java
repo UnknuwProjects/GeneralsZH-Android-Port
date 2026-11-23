@@ -140,6 +140,11 @@ final class ModImportService {
         if (lower.endsWith(".big")) {
             return importBig(ctx, uri, displayName, modsRoot, cancellation);
         }
+        // GeneralsX @bugfix Android port 25/10/2026 A .gib is a .big its mod renamed (ModPacker).
+        if (lower.endsWith(".gib")) {
+            String asBig = displayName.substring(0, displayName.length() - 4) + ".big";
+            return importBig(ctx, uri, asBig, modsRoot, cancellation);
+        }
         if (lower.endsWith(".rar") || lower.endsWith(".7z") || lower.endsWith(".exe")) {
             throw new ImportProblem(R.string.mods_import_rar);
         }
@@ -443,7 +448,7 @@ final class ModImportService {
     }
 
     // Top folders of the game's own layout: a mod packed as just "Data/..." keeps it as its content.
-    private static final Set<String> GAME_FOLDERS = new HashSet<>(java.util.Arrays.asList(
+    static final Set<String> GAME_FOLDERS = new HashSet<>(java.util.Arrays.asList(
         "data", "art", "window", "maps", "shaders", "movies", "audio", "fonts"));
 
     private static File requireModsRoot(Context ctx) throws IOException {
@@ -525,6 +530,9 @@ final class ModImportService {
     private static int verifyBigArchives(File root, CancellationSignal cancellation)
             throws IOException {
         cancellation.throwIfCancelled();
+        if (root.isDirectory()) {
+            ModPacker.renameGibArchives(root);
+        }
         if (root.isFile()) {
             if (root.getName().toLowerCase(Locale.US).endsWith(".big")) {
                 if (!isValidBig(root, cancellation)) {

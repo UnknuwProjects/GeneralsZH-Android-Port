@@ -35,8 +35,39 @@ final class ModPacker {
 
     private ModPacker() {}
 
+    /**
+     * GeneralsX @bugfix Android port 25/10/2026 Some mods ship their archives as .gib (ShockWave and
+     * others): the same BIG archives, renamed so that other installs ignore them, and renamed back to
+     * .big by the mod's own launcher at start. The engine mounts .big only, so those mods started as
+     * plain Zero Hour (4PDA reports). The launcher does what the mod's launcher would: renames them,
+     * once, here and on import. A .gib whose .big already exists is left alone. Returns how many.
+     */
+    static int renameGibArchives(File dir) {
+        int renamed = 0;
+        File[] children = dir.listFiles();
+        if (children == null) {
+            return 0;
+        }
+        for (File c : children) {
+            if (java.nio.file.Files.isSymbolicLink(c.toPath())) {
+                continue;
+            }
+            if (c.isDirectory()) {
+                renamed += renameGibArchives(c);
+            } else if (c.getName().toLowerCase(Locale.US).endsWith(".gib")) {
+                String name = c.getName();
+                File big = new File(dir, name.substring(0, name.length() - 4) + ".big");
+                if (!big.exists() && c.renameTo(big)) {
+                    renamed++;
+                }
+            }
+        }
+        return renamed;
+    }
+
     /** Packs the loose game files of a mod folder when needed. Returns how many it packed. */
     static int ensurePacked(File modDir) throws IOException {
+        renameGibArchives(modDir);
         List<File> files = new ArrayList<>();
         List<String> names = new ArrayList<>();
         File[] top = modDir.listFiles();
@@ -45,10 +76,7 @@ final class ModPacker {
         }
         long newest = 0;
         for (File child : top) {
-            if (child.isDirectory() && !child.getName().equalsIgnoreCase("screenshots")
-                    && !child.getName().startsWith(".")) {
-                newest = Math.max(newest, collect(child, child.getName(), files, names, 0));
-            }
+            newest = Math.max(newest, collectRoots(child, files, names, 0));
         }
         File packed = new File(modDir, PACKED_NAME);
         if (files.isEmpty()) {
@@ -60,6 +88,33 @@ final class ModPacker {
         }
         write(packed, files, names);
         return files.size();
+    }
+
+    /**
+     * GeneralsX @bugfix Android port 25/10/2026 The game's own top folders (Data, Art, Window, Maps...)
+     * wherever they sit in the mod folder: at its top, or inside the folder an archive was packed
+     * with ("Rise of the Reds/Data/INI/..."), up to three levels down. Each is packed under its own
+     * name, so the engine reads Data\INI\... and not Rise of the Reds\Data\INI\..., which no
+     * game code ever opens. Other folders -- a Windows launcher, its videos, documentation -- are not
+     * game data and are no longer packed: they only made the archive large and slow to build.
+     */
+    private static long collectRoots(File dir, List<File> files, List<String> names, int depth) {
+        if (!dir.isDirectory() || dir.getName().startsWith(".")
+                || dir.getName().equalsIgnoreCase("screenshots")
+                || java.nio.file.Files.isSymbolicLink(dir.toPath())) {
+            return 0;
+        }
+        if (ModImportService.GAME_FOLDERS.contains(dir.getName().toLowerCase(Locale.US))) {
+            return collect(dir, dir.getName(), files, names, 0);
+        }
+        long newest = 0;
+        File[] children = depth < 3 ? dir.listFiles() : null;
+        if (children != null) {
+            for (File c : children) {
+                newest = Math.max(newest, collectRoots(c, files, names, depth + 1));
+            }
+        }
+        return newest;
     }
 
     private static long collect(File dir, String path, List<File> files, List<String> names, int depth) {
@@ -75,7 +130,8 @@ final class ModPacker {
             String childPath = path + "\\" + c.getName();
             if (c.isDirectory()) {
                 newest = Math.max(newest, collect(c, childPath, files, names, depth + 1));
-            } else if (!c.getName().toLowerCase(Locale.US).endsWith(".big")) {
+            } else if (!c.getName().toLowerCase(Locale.US).endsWith(".big")
+                    && !c.getName().toLowerCase(Locale.US).endsWith(".gib")) {
                 files.add(c);
                 names.add(childPath);
                 newest = Math.max(newest, c.lastModified());

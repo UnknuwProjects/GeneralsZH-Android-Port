@@ -37,6 +37,7 @@
     <string name="setup_folder_issue_bad_header">%1$s não parece um arquivo de jogo válido</string>
     <string name="setup_folder_issue_missing_data">Faltam dados esperados do jogo em %1$s — provavelmente uma cópia incompleta</string>
     <string name="setup_folder_issue_no_base_game">Faltam dados do jogo base Generals:%1$s\n\nOu indique ao Setup a pasta que já os contém — o botão “Pasta do jogo base Generals…” abaixo (normalmente ZH_Generals ou Command and Conquer Generals).</string>
+    <string name="setup_folder_issue_no_ai_scripts">Falta Data\\Scripts\\SkirmishScripts.scb — os oponentes do computador não farão nada nas escaramuças. Copie a pasta do jogo inteira, com a pasta Data, não só os arquivos .big.</string>
     <string name="setup_status_logs_note">Os registros de falha/motor ficam no armazenamento privado deste aplicativo e só podem ser acessados por \"Ver registros\" acima — o Android os oculta intencionalmente dos gerenciadores de arquivos comuns (esse é o isolamento padrão do Android, não algo específico deste aplicativo).</string>
 
     <!-- SetupActivity: Language card -->
@@ -457,7 +458,7 @@
     <string name="mods_home_enabled">Mods ligados: %1$d</string>
     <string name="mods_home_all_off">Instalados: %1$d, todos desligados</string>
     <string name="mods_import_rar">Arquivos RAR e 7z e instaladores .exe não abrem no Android. Descompacte primeiro com um gerenciador de arquivos (por exemplo, ZArchiver) e importe a pasta, ou compacte-a em .zip.</string>
-    <string name="mods_import_unsupported">Escolha uma pasta, um arquivo .big ou um .zip.</string>
+    <string name="mods_import_unsupported">Escolha uma pasta, um arquivo .big (.gib) ou um .zip.</string>
     <string name="mods_import_full_game">Isto é um jogo completo, não um mod: tem os arquivos próprios do jogo (INI, W3D, Textures). Escolha a pasta dele como pasta do jogo no Início.</string>
     <string name="mods_import_no_big">Nenhum arquivo .big encontrado. Um mod para esta tela é uma pasta com arquivos .big.</string>
     <string name="mods_card_ok">Funciona com os outros mods ligados</string>
@@ -504,4 +505,19 @@
     <string name="setup_sources_zh_art_missing">A pasta do Zero Hour não tem TexturesZH.big, então o Generals não pode pegar imagens dela: %1$s</string>
     <string name="setup_sources_base_ok">Arquivos do Generals original para o Zero Hour: %1$s</string>
     <string name="setup_sources_base_auto">O Zero Hour procura os arquivos do Generals original na própria pasta (ZH_Generals) ou ao lado dela; se estiverem em outro lugar, escolha uma pasta abaixo.</string>
+    <string name="setup_langpack_offer_title">Jogar em %1$s?</string>
+    <string name="setup_langpack_offer_message">O texto do próprio jogo está em inglês. Há uma tradução (%1$s) para este jogo: baixá-la (algumas centenas de kilobytes) e mudar o texto do jogo para ela? Dá para mudar depois em “Idioma do texto do jogo”.</string>
+    <string name="setup_langpack_offer_message_present">Já há uma tradução (%1$s) na pasta deste jogo. Mudar o texto do jogo para ela? Dá para mudar depois em “Idioma do texto do jogo”.</string>
+    <string name="setup_langpack_offer_download">Baixar e mudar</string>
+    <string name="setup_langpack_offer_switch">Mudar</string>
+    <string name="setup_langpack_offer_no">Manter inglês</string>
+    <string name="online_datapacks_need_storage">O launcher não tem acesso aos arquivos do telefone, então os dados online não podem ser salvos. Na tela que abrir, permita ao Generals o “Acesso a todos os arquivos” e toque em “Atualizar” de novo.</string>
+    <string name="setup_status_no_storage_access">Sem acesso aos arquivos do telefone: o jogo não conseguirá salvar e os dados online não serão baixados. Toque em “Selecionar pasta do jogo” e permita o “Acesso a todos os arquivos”.</string>
+    <string name="setup_langpack_update_title">Atualização da tradução</string>
+    <string name="setup_langpack_update_message">Há uma versão mais nova da tradução (%1$s) para este jogo. Atualizar agora?</string>
+    <string name="setup_langpack_update_yes">Atualizar</string>
+    <string name="setup_langpack_update_no">Agora não</string>
+    <string name="setup_langpack_update_done">Tradução atualizada: %1$s</string>
+    <string name="setup_switch_subtitles">Mostrar legendas</string>
+    <string name="setup_switch_subtitles_desc">O texto do que é dito nas missões e no Desafio dos Generais: conversas de rádio, as provocações dos generais. O jogo tem esses textos, mas nunca os mostrou. Vale a partir do próximo início do jogo. Ativado por padrão se o texto do jogo estiver num idioma que você tem instalado.</string>
 </resources>

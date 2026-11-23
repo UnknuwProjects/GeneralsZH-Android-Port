@@ -1211,7 +1211,51 @@ public class SetupActivity extends Activity {
         // holds all but 20 of the base game's 2806 labels (the engine takes those 20 from the
         // game's own table), so they serve Generals too.
 
+        // GeneralsX @feature Android port 25/10/2026 The voice lines' texts, hidden by the retail data
+        // (GXSubtitles.h). A marker file, like the mouse mode: both games, read at start.
+        SwitchCompat subtitles = UiKit.switchRow(content,
+            getString(R.string.setup_switch_subtitles), getString(R.string.setup_switch_subtitles_desc));
+        subtitles.setChecked(subtitlesOn(this));
+        subtitles.setOnCheckedChangeListener((button, checked) -> {
+            getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit().putBoolean(PREF_SUBTITLES, checked).apply();
+            writeSubtitlesMarker(this);
+        });
+
         UiKit.helpText(content, getString(R.string.setup_language_help));
+    }
+
+    static final String SUBTITLES_MARKER = "subtitles";
+    private static final String PREF_SUBTITLES = "subtitles_on";
+
+    /**
+     * GeneralsX @feature Android port 25/10/2026 On unless the player switched them off -- as long as
+     * the game's text language is really there: English (the game's own), or a chosen language whose
+     * text is in the game folder. A language without its text would show the subtitles as
+     * placeholders, so then they stay off until the player turns them on.
+     */
+    static boolean subtitlesOn(android.content.Context ctx) {
+        android.content.SharedPreferences prefs = ctx.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE);
+        if (prefs.contains(PREF_SUBTITLES)) {
+            return prefs.getBoolean(PREF_SUBTITLES, false);
+        }
+        String token = LocaleHelper.getGameTextToken(ctx);
+        return token == null || token.isEmpty() || gameHasTextFor(getSavedGamePath(ctx), token);
+    }
+
+    /** The marker the engine reads (GXSubtitles.h), written before every start. */
+    static void writeSubtitlesMarker(android.content.Context ctx) {
+        File marker = new File(ctx.getFilesDir(), SUBTITLES_MARKER);
+        try {
+            if (subtitlesOn(ctx)) {
+                if (!marker.isFile()) {
+                    new java.io.FileOutputStream(marker).close();
+                }
+            } else {
+                marker.delete();
+            }
+        } catch (java.io.IOException e) {
+            android.util.Log.w("SetupActivity", "could not write the subtitles marker", e);
+        }
     }
 
     // GeneralsX @feature Android port 13/07/2026 GitHub issue #4 follow-up:
@@ -2868,6 +2912,15 @@ public class SetupActivity extends Activity {
             if (basePath != null && !isGeneralsSelected(this)) {
                 sb.append(getString(R.string.setup_status_base_generals_line, basePath));
             }
+            // GeneralsX @bugfix Android port 25/10/2026 Said here, where Play is, and not only when a
+            // download fails: without it the game cannot save either (see hasStorageAccess).
+            if (!hasStorageAccess(this)) {
+                sb.append("\n\n");
+                int warnStart = sb.length();
+                sb.append(getString(R.string.setup_status_no_storage_access));
+                sb.setSpan(new ForegroundColorSpan(UiKit.color(this, R.color.gzh_status_error)),
+                    warnStart, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
         }
         // GeneralsX @feature Android port launcher-ui-2026 08/09/2026 The
         // "your logs live in private storage" paragraph used to be glued to
@@ -2880,6 +2933,238 @@ public class SetupActivity extends Activity {
         }
         statusText.setText(sb.subSequence(0, end));
         updateGameLanguageStatusView();
+        maybeOfferLanguagePack();
+        maybeCheckLanguagePackUpdate();
+    }
+
+    private static boolean languagePackUpdateChecked;
+    private static final long LANGPACK_CHECK_INTERVAL_MS = 12L * 60 * 60 * 1000;
+
+    /**
+     * GeneralsX @feature Android port 25/10/2026 Translations keep improving in languages/, and a
+     * player who downloaded one never heard of it. At most every 12 hours, once per process, the
+     * pack the game text is set to is fetched again (a conditional request: the ETag of the copy
+     * the player has answers "not modified" cheaply) and, when it differs from the one installed,
+     * the player is asked whether to update -- with the new file already downloaded, so yes is
+     * instant. Only a loose data/<language>/generals.str is compared -- what this launcher installs;
+     * a translation shipped in a .big is not touched -- and only against a downloaded file that is
+     * one of our packs (GX:LanguageName). "Not now" is remembered for that version only.
+     */
+    private void maybeCheckLanguagePackUpdate() {
+        if (languagePackUpdateChecked || languagePackOfferShowing) {
+            return;
+        }
+        final String token = LocaleHelper.getGameTextToken(this);
+        final String gamePath = getSavedGamePath();
+        if (token == null || token.isEmpty() || gamePath == null) {
+            return;
+        }
+        final File installed = new File(gamePath, "data/" + token + "/generals.str");
+        if (!installed.isFile()) {
+            return;
+        }
+        final android.content.SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        final String game = getSelectedGame(this);
+        final String suffix = game + "_" + token;
+        long last = prefs.getLong("langpack_checked_" + suffix, 0);
+        if (Math.abs(System.currentTimeMillis() - last) < LANGPACK_CHECK_INTERVAL_MS) {
+            return;
+        }
+        languagePackUpdateChecked = true;
+        final String remoteFile = isGeneralsSelected(this) ? "generals.str" : "generalszh.str";
+        final File fresh = new File(getCacheDir(), "langpack-" + suffix + ".str");
+        new Thread(() -> {
+            HttpURLConnection conn = null;
+            try {
+                conn = (HttpURLConnection) new URL(LANGUAGE_PACK_BASE + token + "/" + remoteFile).openConnection();
+                conn.setConnectTimeout(15000);
+                conn.setReadTimeout(30000);
+                String known = prefs.getString("langpack_etag_" + suffix, null);
+                if (known != null) {
+                    conn.setRequestProperty("If-None-Match", known);
+                }
+                int status = conn.getResponseCode();
+                prefs.edit().putLong("langpack_checked_" + suffix, System.currentTimeMillis()).apply();
+                if (status != 200) {
+                    return;  // 304: the player has the current one; anything else: next time
+                }
+                final String etag = conn.getHeaderField("ETag");
+                long total = 0;
+                byte[] buf = new byte[16 * 1024];
+                try (java.io.InputStream in = conn.getInputStream();
+                     java.io.FileOutputStream out = new java.io.FileOutputStream(fresh)) {
+                    int n;
+                    while ((n = in.read(buf)) > 0) {
+                        out.write(buf, 0, n);
+                        total += n;
+                        if (total > 8L * 1024 * 1024) {
+                            fresh.delete();
+                            return;
+                        }
+                    }
+                }
+                if (total == 0 || !isOurLanguagePack(fresh)) {
+                    fresh.delete();
+                    return;
+                }
+                if (sameFileContents(fresh, installed)) {
+                    if (etag != null) {
+                        prefs.edit().putString("langpack_etag_" + suffix, etag).apply();
+                    }
+                    fresh.delete();
+                    return;
+                }
+                if (etag != null && etag.equals(prefs.getString("langpack_declined_" + suffix, null))) {
+                    fresh.delete();
+                    return;
+                }
+                runOnUiThread(() -> showLanguagePackUpdate(token, installed, fresh, etag, suffix));
+            } catch (Exception e) {
+                fresh.delete();
+            } finally {
+                if (conn != null) {
+                    conn.disconnect();
+                }
+            }
+        }, "gx-langpack-update").start();
+    }
+
+    private void showLanguagePackUpdate(String token, File installed, File fresh, String etag, String suffix) {
+        if (isFinishing() || isDestroyed()) {
+            fresh.delete();
+            return;
+        }
+        final android.content.SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        final String name = gameTextName(token);
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.setup_langpack_update_title)
+            .setMessage(getString(R.string.setup_langpack_update_message, name))
+            .setPositiveButton(R.string.setup_langpack_update_yes, (d, w) -> {
+                File part = new File(installed.getParentFile(), "generals.str.part");
+                try {
+                    java.nio.file.Files.copy(fresh.toPath(), part.toPath(),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    if ((installed.exists() && !installed.delete()) || !part.renameTo(installed)) {
+                        throw new java.io.IOException(getString(R.string.setup_langpack_err_replace));
+                    }
+                    if (etag != null) {
+                        prefs.edit().putString("langpack_etag_" + suffix, etag).apply();
+                    }
+                    toast(getString(R.string.setup_langpack_update_done, gameTextName(token)));
+                } catch (java.io.IOException e) {
+                    part.delete();
+                    toast(getString(R.string.setup_langpack_failed, String.valueOf(e.getMessage())));
+                }
+                fresh.delete();
+            })
+            .setNegativeButton(R.string.setup_langpack_update_no, (d, w) -> {
+                if (etag != null) {
+                    prefs.edit().putString("langpack_declined_" + suffix, etag).apply();
+                }
+                fresh.delete();
+            })
+            .show();
+    }
+
+    /** A pack from languages/: it names itself with the label GX:LanguageName near the top. */
+    private static boolean isOurLanguagePack(File f) {
+        try (java.io.BufferedReader r = new java.io.BufferedReader(
+                 new java.io.InputStreamReader(new java.io.FileInputStream(f), "UTF-8"))) {
+            String line;
+            for (int i = 0; i < 200 && (line = r.readLine()) != null; i++) {
+                if (line.trim().equalsIgnoreCase("GX:LanguageName")) {
+                    return true;
+                }
+            }
+        } catch (java.io.IOException e) {
+            return false;
+        }
+        return false;
+    }
+
+    private static boolean sameFileContents(File a, File b) throws java.io.IOException {
+        if (a.length() != b.length()) {
+            return false;
+        }
+        return java.util.Arrays.equals(java.nio.file.Files.readAllBytes(a.toPath()),
+            java.nio.file.Files.readAllBytes(b.toPath()));
+    }
+
+    private static final String PREF_LANGPACK_OFFERED = "langpack_offered_";
+    private boolean languagePackOfferShowing;
+
+    /**
+     * GeneralsX @feature Android port 25/10/2026 The game in the phone's language out of the box.
+     * The first time a game's folder is ready, a player whose launcher speaks a language with a
+     * pack in languages/ is offered that pack: one tap downloads it into this game's folder and
+     * switches the game's text to it. Asked once per game, and only while the player has not
+     * picked a game text language themselves (or picked this one, which this game lacks).
+     */
+    private void maybeOfferLanguagePack() {
+        if (languagePackOfferShowing || isFinishing() || contentHost == null) {
+            return;
+        }
+        final String gamePath = getSavedGamePath();
+        if (gamePath == null || !isValidGameFolder(new File(gamePath), getSelectedGame(this))) {
+            return;
+        }
+        java.util.Locale locale = getResources().getConfiguration().getLocales().get(0);
+        final String tag = "pt".equals(locale.getLanguage()) ? "pt-BR" : locale.getLanguage();
+        final String token = LocaleHelper.languagePackFor(tag);
+        if (token == null) {
+            return;
+        }
+        final String current = LocaleHelper.getGameTextToken(this);
+        if (LocaleHelper.hasGameTextToken(this) && !current.isEmpty() && !current.equals(token)) {
+            return;
+        }
+        final android.content.SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        final String key = PREF_LANGPACK_OFFERED + getSelectedGame(this);
+        if (prefs.getBoolean(key, false)) {
+            return;
+        }
+        final boolean present = gameHasTextFor(gamePath, token);
+        if (present && token.equals(current)) {
+            return;
+        }
+        final String name = LocaleHelper.displayNameFor(this, tag);
+        languagePackOfferShowing = true;
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.setup_langpack_offer_title, name))
+            .setMessage(getString(present ? R.string.setup_langpack_offer_message_present
+                                          : R.string.setup_langpack_offer_message, name))
+            .setPositiveButton(present ? R.string.setup_langpack_offer_switch
+                                       : R.string.setup_langpack_offer_download, (d, w) -> {
+                prefs.edit().putBoolean(key, true).apply();
+                if (present) {
+                    switchGameTextTo(token);
+                    return;
+                }
+                toast(getString(R.string.setup_langpack_downloading));
+                new Thread(() -> {
+                    final String reason = downloadLanguagePack(token, gamePath);
+                    runOnUiThread(() -> {
+                        if (reason != null) {
+                            // Asked again at the next start: the answer was yes, the network was not.
+                            prefs.edit().remove(key).apply();
+                            toast(getString(R.string.setup_langpack_failed, reason));
+                            return;
+                        }
+                        switchGameTextTo(token);
+                    });
+                }, "gx-langpack-offer").start();
+            })
+            .setNegativeButton(R.string.setup_langpack_offer_no, (d, w) ->
+                prefs.edit().putBoolean(key, true).apply())
+            .setOnDismissListener(d -> languagePackOfferShowing = false)
+            .show();
+    }
+
+    private void switchGameTextTo(String token) {
+        LocaleHelper.setGameTextToken(this, token);
+        applyGameLanguageOverride();
+        updateGameLanguageStatusView();
+        toast(getString(R.string.setup_game_text_status, gameTextName(token)));
     }
 
     // String.join() is API 26; this launcher's UI code deliberately stays
@@ -2966,6 +3251,28 @@ public class SetupActivity extends Activity {
             }
         }
         return false;
+    }
+
+    /** Data\Scripts\SkirmishScripts.scb in the folder, any letter case, or inside one of its archives. */
+    private static boolean hasSkirmishScripts(File dir) {
+        File level = dir;
+        for (String part : new String[] { "data", "scripts", "skirmishscripts.scb" }) {
+            File[] children = level.listFiles();
+            File next = null;
+            if (children != null) {
+                for (File c : children) {
+                    if (c.getName().equalsIgnoreCase(part)) {
+                        next = c;
+                        break;
+                    }
+                }
+            }
+            if (next == null) {
+                return bigContainsEntry(dir, "data/scripts/skirmishscripts.scb");
+            }
+            level = next;
+        }
+        return level.isFile() && level.length() > 0;
     }
 
     private static boolean bigContainsEntry(File dir, String wantedLowerSlash) {
@@ -3608,6 +3915,15 @@ public class SetupActivity extends Activity {
             m_lastCheckWantedBaseGenerals = true;
         }
 
+        // GeneralsX @bugfix Android port 25/10/2026 The computer opponents' scripts are a loose file
+        // beside the archives (Data\Scripts\SkirmishScripts.scb), not inside them. A copy of only the
+        // .big files plays, but every AI player keeps its command center and one idle dozer for the
+        // whole match (issue #64). Found loose, or inside an archive (some repacks put it there),
+        // it is fine.
+        if (!hasSkirmishScripts(dir)) {
+            issues.add(getString(R.string.setup_folder_issue_no_ai_scripts));
+        }
+
         // GeneralsX @bugfix Android port game-folder-integrity-check 06/09/2026
         // A check for a base-game language archive used to live here, matching
         // English.big / German.big / ... against the list registry.cpp probes.
@@ -3784,28 +4100,48 @@ public class SetupActivity extends Activity {
 
     private static final int REQUEST_LEGACY_STORAGE_PERMISSION = 1003;
 
-    private void onSelectGameFolder() {
+    /**
+     * GeneralsX @bugfix Android port 25/10/2026 Whether the app may write the phone's shared storage
+     * (the game folder, and the user-data folder where saves and GeneralsOnline's data go): "All
+     * files access" from Android 11, the storage permission before it. It was asked for only when a
+     * game folder was picked, so a player who never went through the picker, or whose system took
+     * the access back, met a bare "could not create .../GeneralsOnlineGameData" (4PDA, POCO F4 GT).
+     */
+    static boolean hasStorageAccess(android.content.Context ctx) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            if (!Environment.isExternalStorageManager()) {
-                Toast.makeText(this, R.string.setup_toast_grant_all_files, Toast.LENGTH_LONG).show();
-                try {
-                    Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
-                    intent.setData(Uri.parse("package:" + getPackageName()));
-                    startActivity(intent);
-                } catch (Exception e) {
-                    startActivity(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
-                }
-                return;
+            return Environment.isExternalStorageManager();
+        }
+        return ContextCompat.checkSelfPermission(ctx, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            == PackageManager.PERMISSION_GRANTED;
+    }
+
+    /** Opens the system's "All files access" page for this app (or asks, before Android 11). */
+    static void requestStorageAccess(android.app.Activity activity) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+                intent.setData(Uri.parse("package:" + activity.getPackageName()));
+                activity.startActivity(intent);
+            } catch (Exception e) {
+                activity.startActivity(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
             }
-        } else if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
-                != PackageManager.PERMISSION_GRANTED) {
+        } else {
             // MANAGE_EXTERNAL_STORAGE / isExternalStorageManager() don't exist
             // before API 30 -- this is the pre-R equivalent, otherwise
             // FolderPickerActivity opens with no storage permission at all
             // and its File.listFiles() silently comes back empty.
-            ActivityCompat.requestPermissions(this,
+            ActivityCompat.requestPermissions(activity,
                 new String[] { Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE },
                 REQUEST_LEGACY_STORAGE_PERMISSION);
+        }
+    }
+
+    private void onSelectGameFolder() {
+        if (!hasStorageAccess(this)) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                Toast.makeText(this, R.string.setup_toast_grant_all_files, Toast.LENGTH_LONG).show();
+            }
+            requestStorageAccess(this);
             return;
         }
         startActivityForResult(new Intent(this, FolderPickerActivity.class), 1001);

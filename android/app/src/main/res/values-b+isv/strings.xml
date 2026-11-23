@@ -37,6 +37,7 @@
     <string name="setup_folder_issue_bad_header">%1$s ne izgledaje kako validny arhiv igry</string>
     <string name="setup_folder_issue_missing_data">V %1$s ne dostaje očekyvanyh dat igry — najvěrojatno nekompletna kopija</string>
     <string name="setup_folder_issue_no_base_game">Ne dostajut dannyh osnovnoj igry Generals:%1$s\n\nAbo ukaži papku, v kojej oni uže sut — gomba „Papka osnovnoj igry Generals…“ nizše (obyčno ZH_Generals abo Command and Conquer Generals).</string>
+    <string name="setup_folder_issue_no_ai_scripts">Ne jest fajla Data\\Scripts\\SkirmishScripts.scb — računalne protivniki v skirmišu ne budut ničto dělati. Kopiruj cělu papku igry, s papkoju Data, ne samo fajly .big.</string>
     <string name="setup_status_logs_note">Logi padu/jadra sut v privatnom skladišču aplikacije i dostupni tolko čerez \"Prokazati logi\" vyše — Android namerno skryva jih od normalnyh upravitelev datotek (to jest standardny Android peskovnik, ne osobitost sej aplikacije).</string>
 
     <!-- SetupActivity: Language card -->
@@ -457,7 +458,7 @@
     <string name="mods_home_enabled">Vključene mody: %1$d</string>
     <string name="mods_home_all_off">Instalovano modov: %1$d, vse vyključene</string>
     <string name="mods_import_rar">Arhivy RAR i 7z i instalatory .exe ne mogut se otvoriti na Androidu. Najprvo raspakujte arhiv menedžerom fajlov (napr. ZArchiver) i importujte papku, ili zapakujte jej v .zip.</string>
-    <string name="mods_import_unsupported">Izberite papku, fajl .big ili arhiv .zip.</string>
+    <string name="mods_import_unsupported">Izberite papku, fajl .big (.gib) ili arhiv .zip.</string>
     <string name="mods_import_full_game">To jest cěla igra, ne mod: ona imaje svoje arhivy igry (INI, W3D, Textures). Izberite jej papku kako papku igry na glavnoj stranici.</string>
     <string name="mods_import_no_big">Ne jest najdeny nijedin arhiv .big. Mod za toj ekran jest papka s fajlami .big.</string>
     <string name="mods_card_ok">Rabotaje s drugymi vključenymi modami</string>
@@ -504,4 +505,19 @@
     <string name="setup_sources_zh_art_missing">V papkě Zero Hour nema TexturesZH.big, zato Generals ne može vzeti odtamtud kartinky: %1$s</string>
     <string name="setup_sources_base_ok">Arhivy originalnoj Generals za Zero Hour: %1$s</string>
     <string name="setup_sources_base_auto">Zero Hour iskaje arhivy originalnoj Generals v svojej papkě (ZH_Generals) ili blizu nej; ako sut drugde, vyberite papku niže.</string>
+    <string name="setup_langpack_offer_title">Igrati na jezyku: %1$s?</string>
+    <string name="setup_langpack_offer_message">Tekst samoj igry jest na anglijskom. Za tutu igru jest prěvod (%1$s): skačati jego (nekoliko sto kilobajtov) i prěključiti na njego tekst igry? Potom to možno izměniti v punktu «Jezyk teksta igry».</string>
+    <string name="setup_langpack_offer_message_present">Prěvod (%1$s) uže jest v papke toj igry. Prěključiti na njego tekst igry? Potom to možno izměniti v punktu «Jezyk teksta igry».</string>
+    <string name="setup_langpack_offer_download">Skačati i prěključiti</string>
+    <string name="setup_langpack_offer_switch">Prěključiti</string>
+    <string name="setup_langpack_offer_no">Ostaviti anglijsky</string>
+    <string name="online_datapacks_need_storage">Lanšer ne imaje dostupa k fajlam telefona, zato mrěžne dane ne možno zapisati. Na ekranu, ktory se otvori, dozvolite Generals «Dostup ko vsim fajlam» i opet nažmite «Obnoviti».</string>
+    <string name="setup_status_no_storage_access">Nema dostupa k fajlam telefona: igra ne bude mogla zapisyvati, a mrěžne dane se ne skačajut. Nažmite «Izbrati papku igry» i dozvolite «Dostup ko vsim fajlam».</string>
+    <string name="setup_langpack_update_title">Obnovjenje prěvoda</string>
+    <string name="setup_langpack_update_message">Za tutu igru jest nova versija prěvoda (%1$s). Obnoviti teraz?</string>
+    <string name="setup_langpack_update_yes">Obnoviti</string>
+    <string name="setup_langpack_update_no">Ne teraz</string>
+    <string name="setup_langpack_update_done">Prěvod obnovjen: %1$s</string>
+    <string name="setup_switch_subtitles">Pokazyvati podpisi</string>
+    <string name="setup_switch_subtitles_desc">Tekst togo, čto se govori v misijah i v Izpytanju generalov: radijne razgovory, podkolky generalov. Igra imaje te teksty, ale nikdy jih ne pokazyvala. Dějstvuje od slědnjego zapuska igry. Po umolčanju vključeno, ako tekst igry jest na jezyku, ktory imate.</string>
 </resources>

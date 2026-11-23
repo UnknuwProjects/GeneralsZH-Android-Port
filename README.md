@@ -8,6 +8,25 @@
 > release. If you saw this described anywhere as an "official" release, that's
 > wrong — please don't spread it further.
 
+<p align="center">
+  <a href="https://github.com/MYSOREZ/GeneralsZH-Android-Port/releases/latest"><img alt="Download the latest APK" src="https://img.shields.io/github/v/release/MYSOREZ/GeneralsZH-Android-Port?label=Download%20APK&style=for-the-badge&logo=android&logoColor=white&color=3DDC84"></a>
+  <a href="https://gitverse.ru/MYSOREZ/Generals_ZeroHour/releases"><img alt="Mirror on GitVerse" src="https://img.shields.io/badge/Mirror-GitVerse-5B5BD6?style=for-the-badge"></a>
+  <a href="https://boosty.to/antikeks_m/donate"><img alt="Support on Boosty" src="https://img.shields.io/badge/Support-Boosty-F15F2C?style=for-the-badge"></a>
+</p>
+<p align="center">
+  <a href="#quick-start--android"><img alt="Quick start" src="https://img.shields.io/badge/Quick%20start-2b3137?style=flat-square"></a>
+  <a href="#touch-controls"><img alt="Touch controls" src="https://img.shields.io/badge/Touch%20controls-2b3137?style=flat-square"></a>
+  <a href="#known-issues"><img alt="Known issues" src="https://img.shields.io/badge/Known%20issues-2b3137?style=flat-square"></a>
+  <a href="https://github.com/MYSOREZ/GeneralsZH-Android-Port/issues"><img alt="Report a problem" src="https://img.shields.io/badge/Report%20a%20problem-2b3137?style=flat-square"></a>
+  <a href="#heroes-of-the-project"><img alt="Heroes of the project" src="https://img.shields.io/badge/Heroes%20of%20the%20project-2b3137?style=flat-square"></a>
+</p>
+<p align="center">
+  <img alt="Downloads" src="https://img.shields.io/github/downloads/MYSOREZ/GeneralsZH-Android-Port/total?label=downloads">
+  <img alt="Stars" src="https://img.shields.io/github/stars/MYSOREZ/GeneralsZH-Android-Port?label=stars">
+  <img alt="License" src="https://img.shields.io/badge/license-GPL--3.0-blue">
+  <img alt="Android 9+ arm64" src="https://img.shields.io/badge/Android-9%2B%20arm64-3DDC84">
+</p>
+
 ### Generals — the front line just went mobile.
 
 You thought this war was over? That the GLA was finished, the Particle Cannon had fallen silent
@@ -124,6 +143,8 @@ so a tap on a panel never falls through to the map underneath.
 | Two fingers | Pan and zoom together |
 | Long press on the map (~0.6s, no movement) | Cancel an armed ability or a pending building; otherwise clear the selection |
 | Two-finger tap | The same cancel |
+| Tap on the minimap | As on a PC, a left click: with units selected it sends them there; with nothing selected it moves the camera there |
+| Press and hold on the minimap (~0.6s), then release | Move the camera there even with units selected (the PC's right click) |
 | Tap a UI button | Press it |
 | Hold a UI button | Read its description, without pressing it |
 | **With an ability armed**: touch the map, drag, release | Aim it — the radius circle follows your finger; release fires it where you let go; a second finger cancels |
@@ -258,6 +279,39 @@ Send **USDT only, and only over the network written next to the address** — an
 or USDT over a different network, will be lost. Donations support development only: the game
 and every build stay free, and nothing is unlocked by donating. *Command & Conquer* is a
 trademark of Electronic Arts; this is an unofficial fan project.
+
+Boosty keeps about $0.25 of a donation when it is paid out, so a tip of that size or
+smaller does not reach the subscription.
+
+### Heroes of the project
+
+Everyone who has supported the port, month by month (amounts in US dollars, approximate where the
+donation was in another currency). The launcher shows the current month only; at the end of every
+month its heroes move here. Thank you!
+
+**November 2026** — $0 of the $20 monthly subscription so far
+
+**October 2026** — $18.73 of the $20 monthly subscription
+
+| Hero | Amount |
+|---|---|
+| Diaa Abu Jazar | $2 · Boosty |
+| hein htetsan | $0.19 · Boosty |
+| [UA]Den^ | $4.79 · Boosty |
+| Zhask Dominator | $6.21 · Boosty |
+| Mukhiddin (WaruEdition) | $2.81 · Boosty |
+| Shahre Masore | $0.47 · Boosty |
+| MAD ATOM | $1.88 · Boosty |
+| Unknown General | $0.38 · USDT |
+
+## Popularity
+
+<a href="https://star-history.com/#MYSOREZ/GeneralsZH-Android-Port&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=MYSOREZ/GeneralsZH-Android-Port&type=Date&theme=dark">
+    <img alt="Star history" src="https://api.star-history.com/svg?repos=MYSOREZ/GeneralsZH-Android-Port&type=Date" width="600">
+  </picture>
+</a>
 
 ## Lineage & credits
 
