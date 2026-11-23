@@ -775,6 +775,86 @@ Bool WeaponTemplate::shouldProjectileCollideWith(
 }
 
 //-------------------------------------------------------------------------------------------------
+// GeneralsX @bugfix Android port 23/11/2026 Build 10413 crashed once in
+// ~23 minutes of heavy combat: a deployed turret firing at a ground
+// position segfaulted in Weapon::newProjectileFired while copying
+// WeaponTemplate::m_projectileStreamName -- but the disassembly of the
+// shipped libmain.so proved Weapon::m_template was 0x17, a wild pointer,
+// not null, so the template itself was already corrupt before the copy.
+// The last confirmed-valid read is getProjectileTemplate() in
+// fireWeaponTemplate, so the pointer goes bad somewhere between there and
+// newProjectileFired (projectile creation, setProducer, battle-plan
+// bonuses, or a script call). The writer is not identified yet, so the
+// crash log has to name the shot: this slot records the last weapon fired
+// on every fire, and the crash handler prints it as a [GX-CRASH] line.
+//
+// One pre-formatted line, written by the game-logic thread and read by
+// the crash handler. A single snprintf per shot, no heap allocation on
+// this path (AsciiString copies only bump a refcount), and the handler
+// only does a bounded scan + write -- so a crash on another thread that
+// lands mid-write can only garble the line, never overrun it. The record
+// happens at fireWeaponTemplate entry, before the corruption window,
+// while the template and both objects are still known-good -- including
+// the stream name, which is the string the 10413 crash was copying.
+static char s_gxLastFiredLine[512] = "[GX-CRASH] last fired: (no weapon fired yet)\n";
+
+static void GXRecordLastFiredWeapon(const WeaponTemplate *tmpl, const Object *sourceObj, const Object *victimObj, const Coord3D *victimPos)
+{
+	if (tmpl == nullptr || sourceObj == nullptr)
+		return;
+
+	// Keep the names as AsciiStrings, not raw pointers: getName() returns
+	// by value, and a .str() taken from a temporary is only good until the
+	// end of its own statement.
+	AsciiString unitName("?");
+	const ThingTemplate *unitTmpl = sourceObj->getTemplate();
+	if (unitTmpl != nullptr)
+		unitName = unitTmpl->getName();
+
+	char target[160];
+	if (victimObj != nullptr)
+	{
+		AsciiString victimName("?");
+		const ThingTemplate *victimTmpl = victimObj->getTemplate();
+		if (victimTmpl != nullptr)
+			victimName = victimTmpl->getName();
+		snprintf(target, sizeof(target), "object(%.127s)", victimName.str());
+	}
+	else if (victimPos != nullptr)
+	{
+		snprintf(target, sizeof(target), "ground(%.0f,%.0f,%.0f)", victimPos->x, victimPos->y, victimPos->z);
+	}
+	else
+	{
+		snprintf(target, sizeof(target), "self");
+	}
+
+	snprintf(s_gxLastFiredLine, sizeof(s_gxLastFiredLine),
+		"[GX-CRASH] last fired: frame=%u unit='%.63s' weapon='%.63s' stream='%.63s' target=%s\n",
+		TheGameLogic->getFrame(), unitName.str(), tmpl->getName().str(),
+		tmpl->getProjectileStreamName().str(), target);
+}
+
+// GeneralsX @bugfix Android port 23/11/2026 Called from the native crash handler
+// (Core/Main/AndroidCrashHandler.cpp, a weak reference: builds without this
+// file simply skip it). Prints the last weapon fired, so a crash inside
+// weapon firing names the shot -- see GXRecordLastFiredWeapon above.
+extern "C" void gx_write_last_fired_weapon_context(void (*out)(const char *, size_t))
+{
+	if (out == nullptr)
+		return;
+	// Bounded scan on purpose, not strlen: the game-logic thread may be
+	// mid-snprintf into this buffer when another thread crashes, so read
+	// it as raw bytes capped at the buffer size rather than trusting a
+	// terminator that may not be written yet.
+	size_t len = 0;
+	while (len < sizeof(s_gxLastFiredLine) && s_gxLastFiredLine[len] != '\0')
+		++len;
+	if (len > 0)
+		out(s_gxLastFiredLine, len);
+}
+
+//-------------------------------------------------------------------------------------------------
 UnsignedInt WeaponTemplate::fireWeaponTemplate
 (
 	const Object *sourceObj,
@@ -823,6 +903,10 @@ UnsignedInt WeaponTemplate::fireWeaponTemplate
 
 		return 0;
 	}
+
+	// GeneralsX @bugfix Android port 23/11/2026 Record this shot now, before
+	// anything in the fire path can go wrong -- see GXRecordLastFiredWeapon.
+	GXRecordLastFiredWeapon(this, sourceObj, victimObj, victimPos);
 
 	DEBUG_ASSERTCRASH((m_primaryDamage > 0)  ||  (victimObj == nullptr), ("You can't really shoot a zero damage weapon at an Object.") );
 
@@ -2544,6 +2628,15 @@ Real Weapon::estimateWeaponDamage(const Object *sourceObj, const Object *victimO
 //-------------------------------------------------------------------------------------------------
 void Weapon::newProjectileFired(const Object *sourceObj, const Object *projectile, const Object *victimObj, const Coord3D *victimPos )
 {
+	// GeneralsX @bugfix Android port 23/11/2026 Hardening only: with no
+	// template there is no stream to report, so bail out like the null
+	// check at privateFireWeapon entry. This does NOT fix the build 10413
+	// crash -- that template pointer was 0x17, a wild pointer, not null,
+	// so this guard would not have caught it. The [GX-CRASH] last-fired
+	// line in the crash log is what will identify that crash's writer.
+	if( !m_template )
+		return;
+
 	// If I have a stream, I need to tell it about this new guy
 	if( m_template->getProjectileStreamName().isEmpty() )
 		return; // nope, no streak logic to do

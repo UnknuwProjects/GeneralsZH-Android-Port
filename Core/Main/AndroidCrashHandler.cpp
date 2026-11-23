@@ -408,6 +408,13 @@ void logResolvedAddress(const char *label, uintptr_t addr) {
 extern "C" void d3d8gles_write_crash_context(void (*out)(const char *, size_t), int crashedTid)
 	__attribute__((weak));
 
+// GeneralsX @bugfix Android port 23/11/2026 Same weak-reference pattern as
+// d3d8gles above: the engine's last-fired-weapon slot, printed by the
+// crash handler so a crash inside weapon firing names the shot. Builds
+// without the engine file simply skip it.
+extern "C" void gx_write_last_fired_weapon_context(void (*out)(const char *, size_t))
+	__attribute__((weak));
+
 void androidCrashHandler(int sig, siginfo_t *info, void *ucontext) {
 	char buf[512];
 	const void *faultAddr = (info != nullptr) ? info->si_addr : nullptr;
@@ -418,6 +425,14 @@ void androidCrashHandler(int sig, siginfo_t *info, void *ucontext) {
 		sig, strsignal(sig), faultAddr, (int)getpid(), (int)gettid());
 	if (len > 0) {
 		appendCrashLog(buf, (size_t)len < sizeof(buf) ? (size_t)len : sizeof(buf) - 1);
+	}
+
+	// GeneralsX @bugfix Android port 23/11/2026 The last weapon fired, first
+	// in the log so it is seen before the backtrace: a crash inside weapon
+	// firing (like build 10413's) then names the firing unit, the weapon
+	// template and its target instead of just a fault address.
+	if (gx_write_last_fired_weapon_context != nullptr) {
+		gx_write_last_fired_weapon_context(appendCrashLog);
 	}
 
 #if defined(__aarch64__)
