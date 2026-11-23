@@ -4117,6 +4117,8 @@ void gxPhysNote(Char kind, UnsignedInt id, const Real *values, Int count)
 		gxPhysPrint(r);
 }
 #else
+#define GX_FP_BLAME(phase, obj, u) do {} while (0)
+#endif
 // GeneralsX @diag Android port 24/11/2026 Which subsystem owns a slow logic step.
 // Build 10417: a new game on a 440x440 map slows from 14 fps to 0.2 fps in
 // two minutes, and [GX-PERF] shows the whole cost in one number -- one logic
