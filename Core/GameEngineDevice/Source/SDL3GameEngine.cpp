@@ -2816,16 +2816,27 @@ void SDL3GameEngine::update(void)
 		const Uint64 elapsedMs = now - s_gxFpsWindowStart;
 		if (elapsedMs >= 5000) {
 			const Real avgFps = (Real)s_gxFpsFrames * 1000.0f / (Real)elapsedMs;
-			const Real pace = (avgFps >= (Real)simFps) ? 1.0f : avgFps / (Real)simFps;
 			if (!s_gxFpsHeaderPrinted) {
 				fprintf(stderr, "[gxfps] fps=drawn frames/s (5 s average), sim=logic Hz, pace=game-time vs real-time (1.00 is full speed), step=logic step, frame=drawn frame time, limit=FPS cap\n");
 				s_gxFpsHeaderPrinted = TRUE;
 			}
-			fprintf(stderr, "[gxfps] fps=%.1f sim=%dHz pace=%.2f step=%.1fms frame=%.1fms limit=%d\n",
-			        avgFps, (int)simFps, pace,
-			        (TheFramePacer != nullptr) ? TheFramePacer->getLogicTimeStepMilliseconds() : 0.0f,
-			        (Real)elapsedMs / (Real)s_gxFpsFrames,
-			        (TheFramePacer != nullptr) ? (int)TheFramePacer->getActualFramesPerSecondLimit() : 0);
+			if (simFps >= RenderFpsPreset::UncappedFpsValue) {
+				// Uncapped logic time scale (single-player with no Sim Rate lock): there
+				// is no logic Hz to pace against, so pace is meaningless here -- report
+				// it as n/a instead of 0.00, which wrongly reads as a frozen game.
+				fprintf(stderr, "[gxfps] fps=%.1f sim=uncapped pace=n/a step=%.1fms frame=%.1fms limit=%d\n",
+				        avgFps,
+				        (TheFramePacer != nullptr) ? TheFramePacer->getLogicTimeStepMilliseconds() : 0.0f,
+				        (Real)elapsedMs / (Real)s_gxFpsFrames,
+				        (TheFramePacer != nullptr) ? (int)TheFramePacer->getActualFramesPerSecondLimit() : 0);
+			} else {
+				const Real pace = (avgFps >= (Real)simFps) ? 1.0f : avgFps / (Real)simFps;
+				fprintf(stderr, "[gxfps] fps=%.1f sim=%dHz pace=%.2f step=%.1fms frame=%.1fms limit=%d\n",
+				        avgFps, (int)simFps, pace,
+				        (TheFramePacer != nullptr) ? TheFramePacer->getLogicTimeStepMilliseconds() : 0.0f,
+				        (Real)elapsedMs / (Real)s_gxFpsFrames,
+				        (TheFramePacer != nullptr) ? (int)TheFramePacer->getActualFramesPerSecondLimit() : 0);
+			}
 			s_gxFpsWindowStart = now;
 			s_gxFpsFrames = 0;
 		}
