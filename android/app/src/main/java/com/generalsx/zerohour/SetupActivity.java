@@ -1675,6 +1675,7 @@ public class SetupActivity extends Activity {
         LinearLayout content = UiKit.card(root);
         UiKit.sectionHeader(content, R.drawable.ic_gzh_display, getString(R.string.setup_card_upscale), false);
 
+        applyMaliUpscaleDefault();
         int current = readUpscaleMode();
         CharSequence[] labels = {
             getString(R.string.setup_upscale_off_short),
@@ -1727,6 +1728,24 @@ public class SetupActivity extends Activity {
             }
         }
         return 0;
+    }
+
+    // GeneralsX @feature Android port 23/11/2026 Mali phones render below the
+    // screen by default (Quality, 67%) unless the player already picked an
+    // upscaler mode. On Mali the GPU sets the frame time in heavy battles and
+    // its work scales with the pixel count -- on the old Mali test phone 75%
+    // with GSR took a battle from 44 to 57 fps, and the interface stays at
+    // full resolution, so only the battlefield is softer. A player who picks
+    // Off (or any other mode) is never overwritten: this only writes when no
+    // GXUpscale key exists at all.
+    private void applyMaliUpscaleDefault() {
+        if (GpuInfo.familyOf(detectGpuName()) != GpuInfo.Family.MALI) {
+            return;
+        }
+        if (readKeyValueFile(optionsIniFile()).get("GXUpscale") != null) {
+            return;
+        }
+        writeUpscaleMode(2);  // Quality, 67%
     }
 
     private void writeUpscaleMode(int index) {
@@ -2131,6 +2150,9 @@ public class SetupActivity extends Activity {
             getString(R.string.setup_button_reset_driver), this::onClearCustomDriver);
 
         // First-run offer: one line, one tap, never a silent auto-install.
+        // The offered source is skipped in the catalogue below, so the same
+        // driver is never listed twice.
+        String offeredSourceId = null;
         if (!new File(getFilesDir(), CUSTOM_DRIVER_CFG_NAME).isFile()) {
             String recommendation = gpu.isEmpty() ? null : GpuInfo.recommendation(gpu);
             if (recommendation != null) {
@@ -2138,6 +2160,7 @@ public class SetupActivity extends Activity {
                     if (!source.label.contains(recommendation)) {
                         continue;
                     }
+                    offeredSourceId = source.id;
                     UiKit.button(content, UiKit.BTN_TONAL, R.drawable.ic_gzh_download,
                         getString(R.string.setup_button_download_driver, recommendation),
                         () -> onDownloadDriver(source));
@@ -2151,6 +2174,9 @@ public class SetupActivity extends Activity {
         // offered MaliSX2. PowerVR has no pack -- GLES stays its path.
         if (!gpu.isEmpty()) {
             for (DriverCatalog.Source source : DriverCatalog.forGpu(gpu)) {
+                if (source.id.equals(offeredSourceId)) {
+                    continue;
+                }
                 UiKit.button(content, UiKit.BTN_OUTLINE, R.drawable.ic_gzh_download,
                     getString(R.string.setup_button_download_source, source.label),
                     () -> onDownloadDriver(source));
@@ -4655,12 +4681,21 @@ public class SetupActivity extends Activity {
     private void launchGameNow() {
         // GeneralsX @feature Android port 23/11/2026 Boot-failure counter for the
         // custom driver (see DriverSafety): count this start only when a custom
-        // driver is configured. The counter is cleared when the main menu is
-        // reached; after two starts that never get there, Setup reverts to the
-        // stock driver on the next launch (see checkCustomDriverRevert()).
-        if (new File(getFilesDir(), CUSTOM_DRIVER_CFG_NAME).isFile()) {
+        // driver is configured AND the Vulkan backend is selected. On GLES the
+        // custom Vulkan driver is never loaded, so a GLES launch can never
+        // prove anything about the driver -- counting it deleted a working
+        // MaliSX2 import after two ordinary GLES launches. A GLES launch
+        // clears the counter instead: there was nothing to count.
+        if (RENDER_BACKEND_VULKAN.equals(getRenderBackendChoice())
+                && new File(getFilesDir(), CUSTOM_DRIVER_CFG_NAME).isFile()) {
             DriverSafety.noteBootStarted(getFilesDir());
+        } else {
+            DriverSafety.noteReachedMainMenu(getFilesDir());
         }
+        // GeneralsX @feature Android port 23/11/2026 Mali phones render below
+        // the screen with the upscaler unless the player already chose
+        // otherwise (see applyMaliUpscaleDefault()).
+        applyMaliUpscaleDefault();
         // GeneralsX @feature Android port 04/10/2026 The text-language marker is checked against
         // the data of the game about to start, which may not be the one it was last written for.
         applyGameLanguageOverride();

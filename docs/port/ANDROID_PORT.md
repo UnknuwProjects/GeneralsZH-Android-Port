@@ -111,7 +111,14 @@ system Vulkan loader.
 > `scripts/build/android/fetch-turnip.sh` is TODO, and the clear of the
 > boot-failure counter when the main menu is reached is not hooked up yet
 > (its location was not pinned down), so a revert is checked on the next
-> Setup launch, not from the engine.
+> Setup launch, not from the engine. The counter only runs on the Vulkan
+> backend: a GLES launch clears it, so a working driver is never deleted
+> after ordinary GLES launches.
+>
+> Mali phones render below the screen by default (Quality upscaling, 67%)
+> unless the player already picked an upscaler mode, because on Mali the GPU
+> sets the frame time in heavy battles and its work scales with the pixel
+> count. The interface stays at full resolution.
 
 DXVK's own minimum was originally Vulkan 1.3 with a handful of features
 (robustness2, null descriptors, etc.), which is still the *best-supported*
