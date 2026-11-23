@@ -835,6 +835,45 @@ static void GXRecordLastFiredWeapon(const WeaponTemplate *tmpl, const Object *so
 		tmpl->getProjectileStreamName().str(), target);
 }
 
+// GeneralsX @bugfix Android port 24/11/2026 Build 10415 crashed the same
+// way WITH the re-fetch fix in place, and the run20 binary proves the
+// re-fetch fell back to the freed Weapon when the rebuilt set left the
+// firing slot empty (see the re-fetch in fireWeaponTemplate below). To
+// tell that apart from the other ways this can go wrong, the crash log
+// also records the raw pointers: the Weapon and its template at
+// fireWeaponTemplate entry, and again right before newProjectileFired --
+// the old pointer and its template, plus the re-fetched pointer, its
+// template, and whether the slot came back empty. Reading a template
+// pointer out of a Weapon is only a field load, never a dereference, so
+// it is safe even on a freed block (the block is still mapped heap); the
+// crash handler reads this line with the same bounded scan as the line
+// above, so a mid-write tear can only garble it. The entry snapshot is
+// written at fireWeaponTemplate entry, the pre-call snapshot in the
+// re-fetch block right before newProjectileFired.
+static const Weapon *s_gxEntryWeapon = nullptr;
+static const WeaponTemplate *s_gxEntryTemplate = nullptr;
+static char s_gxLastFiredPtrLine[256] = "[GX-CRASH] last fired ptrs: (no weapon fired yet)\n";
+
+static void GXRecordLastFiredPointersEntry(const WeaponTemplate *tmpl, const Weapon *firingWeapon)
+{
+	s_gxEntryWeapon = firingWeapon;
+	s_gxEntryTemplate = (firingWeapon != nullptr) ? firingWeapon->getTemplate() : nullptr;
+	snprintf(s_gxLastFiredPtrLine, sizeof(s_gxLastFiredPtrLine),
+		"[GX-CRASH] last fired ptrs: frame=%u entryWpn=%p entryWpnTmpl=%p tmpl=%p oldWpn=(pending) oldWpnTmpl=(pending) refetchWpn=(pending) refetchWpnTmpl=(pending) slotEmpty=(pending)\n",
+		TheGameLogic->getFrame(), (const void *)firingWeapon, (const void *)s_gxEntryTemplate, (const void *)tmpl);
+}
+
+static void GXRecordLastFiredPointersPreCall(const WeaponTemplate *tmpl, const Weapon *oldWeapon, const Weapon *curWeapon)
+{
+	const WeaponTemplate *oldTmpl = (oldWeapon != nullptr) ? oldWeapon->getTemplate() : nullptr;
+	const WeaponTemplate *curTmpl = (curWeapon != nullptr) ? curWeapon->getTemplate() : nullptr;
+	snprintf(s_gxLastFiredPtrLine, sizeof(s_gxLastFiredPtrLine),
+		"[GX-CRASH] last fired ptrs: frame=%u entryWpn=%p entryWpnTmpl=%p tmpl=%p oldWpn=%p oldWpnTmpl=%p refetchWpn=%p refetchWpnTmpl=%p slotEmpty=%d\n",
+		TheGameLogic->getFrame(), (const void *)s_gxEntryWeapon, (const void *)s_gxEntryTemplate, (const void *)tmpl,
+		(const void *)oldWeapon, (const void *)oldTmpl,
+		(const void *)curWeapon, (const void *)curTmpl, curWeapon == nullptr ? 1 : 0);
+}
+
 // GeneralsX @bugfix Android port 23/11/2026 Called from the native crash handler
 // (Core/Main/AndroidCrashHandler.cpp, a weak reference: builds without this
 // file simply skip it). Prints the last weapon fired, so a crash inside
@@ -852,6 +891,13 @@ extern "C" void gx_write_last_fired_weapon_context(void (*out)(const char *, siz
 		++len;
 	if (len > 0)
 		out(s_gxLastFiredLine, len);
+	// Same bounded scan for the pointer snapshot line, written by the
+	// entry and pre-call recorders above.
+	len = 0;
+	while (len < sizeof(s_gxLastFiredPtrLine) && s_gxLastFiredPtrLine[len] != '\0')
+		++len;
+	if (len > 0)
+		out(s_gxLastFiredPtrLine, len);
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -907,6 +953,9 @@ UnsignedInt WeaponTemplate::fireWeaponTemplate
 	// GeneralsX @bugfix Android port 23/11/2026 Record this shot now, before
 	// anything in the fire path can go wrong -- see GXRecordLastFiredWeapon.
 	GXRecordLastFiredWeapon(this, sourceObj, victimObj, victimPos);
+	// GeneralsX @bugfix Android port 24/11/2026 Record the pointers too --
+	// see GXRecordLastFiredPointersEntry.
+	GXRecordLastFiredPointersEntry(this, firingWeapon);
 
 	DEBUG_ASSERTCRASH((m_primaryDamage > 0)  ||  (victimObj == nullptr), ("You can't really shoot a zero damage weapon at an Object.") );
 
@@ -1249,13 +1298,34 @@ UnsignedInt WeaponTemplate::fireWeaponTemplate
 		// reused it. That is the 0x17 wild m_template behind the DF-41
 		// crash in builds 10413 and 10414. Re-fetch the weapon now in
 		// the slot: if the set was rebuilt this is the new weapon,
-		// otherwise it is the same one, so nothing changes. If the slot
-		// is empty now, there is no stream to record.
+		// otherwise it is the same one, so nothing changes.
+		//
+		// GeneralsX @bugfix Android port 24/11/2026 Build 10415 crashed
+		// the same way WITH the re-fetch in place, and the run20 binary
+		// proves why: when the rebuilt set has no weapon in this slot,
+		// the re-fetch returns null -- updateWeaponSet only fills the
+		// slots the new set defines and leaves the rest null -- and the
+		// code above fell back to the freed pointer anyway and called
+		// newProjectileFired on it. The 10415 crash can only have
+		// happened that way: the re-fetch is in the binary, the Weapon
+		// is valid at privateFireWeapon entry, and updateWeaponSet is
+		// the only mid-shot path that deletes slot weapons, so a null
+		// slot is the only way the freed pointer reaches this call. If
+		// the slot is empty now there is no weapon and no stream to
+		// record, so skip the call instead of using the freed pointer.
+		// The projectile itself is unaffected: it was already created
+		// above and is launched below.
 		if (firingWeapon != nullptr)
 		{
 			Weapon *curWeapon = sourceObj->getWeaponInWeaponSlot(wslot);
+			// GeneralsX @bugfix Android port 24/11/2026 Record the
+			// pointers before deciding -- see
+			// GXRecordLastFiredPointersPreCall.
+			GXRecordLastFiredPointersPreCall(this, firingWeapon, curWeapon);
 			if (curWeapon != nullptr)
 				firingWeapon = curWeapon;
+			else
+				firingWeapon = nullptr;
 		}
 		if (firingWeapon != nullptr)
 			firingWeapon->newProjectileFired( sourceObj, projectile, victimObj, victimPos );//The actual logic weapon needs to know this was created.
