@@ -93,7 +93,6 @@
     <string name="setup_driver_status_manual">自定义驱动（手动导入）：%1$s</string>
     <string name="setup_driver_unknown">（未知）</string>
     <string name="setup_toast_no_file_picker">没有可用的文件选择器：%1$s</string>
-    <string name="setup_toast_reset_auto">重置完成，已重新应用适合此设备的推荐驱动。</string>
     <string name="setup_toast_reset_stock">重置完成，将使用手机自带的 Vulkan 驱动。</string>
     <string name="setup_toast_driver_import_no_tmp">无法创建用于导入驱动的临时文件夹</string>
     <string name="setup_toast_driver_import_failed">导入失败：%1$s</string>

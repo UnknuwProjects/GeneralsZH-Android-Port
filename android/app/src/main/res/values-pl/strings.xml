@@ -93,7 +93,6 @@
     <string name="setup_driver_status_manual">Własny sterownik (zaimportowany ręcznie): %1$s</string>
     <string name="setup_driver_unknown">(nieznany)</string>
     <string name="setup_toast_no_file_picker">Brak dostępnego selektora plików: %1$s</string>
-    <string name="setup_toast_reset_auto">Zresetowano. Zalecany sterownik dla tego urządzenia został ponownie zastosowany.</string>
     <string name="setup_toast_reset_stock">Zresetowano. Będzie używany wbudowany sterownik Vulkan telefonu.</string>
     <string name="setup_toast_driver_import_no_tmp">Nie udało się utworzyć folderu roboczego do importu sterownika</string>
     <string name="setup_toast_driver_import_failed">Import nie powiódł się: %1$s</string>

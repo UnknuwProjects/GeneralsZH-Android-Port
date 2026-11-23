@@ -93,7 +93,6 @@
     <string name="setup_driver_status_manual">درایور سفارشی (به‌صورت دستی وارد شده): %1$s</string>
     <string name="setup_driver_unknown">(نامشخص)</string>
     <string name="setup_toast_no_file_picker">هیچ انتخاب‌گر فایلی در دسترس نیست: %1$s</string>
-    <string name="setup_toast_reset_auto">بازنشانی انجام شد. درایور پیشنهادی برای این دستگاه دوباره اعمال شد.</string>
     <string name="setup_toast_reset_stock">بازنشانی انجام شد. از درایور Vulkan پیش‌فرض گوشی استفاده خواهد شد.</string>
     <string name="setup_toast_driver_import_no_tmp">ایجاد پوشه موقت برای وارد کردن درایور ممکن نشد</string>
     <string name="setup_toast_driver_import_failed">وارد کردن ناموفق بود: %1$s</string>

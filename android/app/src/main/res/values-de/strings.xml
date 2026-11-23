@@ -93,7 +93,6 @@
     <string name="setup_driver_status_manual">Eigener Treiber (manuell importiert): %1$s</string>
     <string name="setup_driver_unknown">(unbekannt)</string>
     <string name="setup_toast_no_file_picker">Kein Dateiauswahl-Tool verfügbar: %1$s</string>
-    <string name="setup_toast_reset_auto">Zurückgesetzt. Der empfohlene Treiber für dieses Gerät wurde erneut angewendet.</string>
     <string name="setup_toast_reset_stock">Zurückgesetzt. Der werkseitige Vulkan-Treiber des Telefons wird verwendet.</string>
     <string name="setup_toast_driver_import_no_tmp">Arbeitsordner für den Treiberimport konnte nicht erstellt werden</string>
     <string name="setup_toast_driver_import_failed">Import fehlgeschlagen: %1$s</string>

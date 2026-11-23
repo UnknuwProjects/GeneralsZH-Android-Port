@@ -93,7 +93,6 @@
     <string name="setup_driver_status_manual">Driver personalizado (importado manualmente): %1$s</string>
     <string name="setup_driver_unknown">(desconhecido)</string>
     <string name="setup_toast_no_file_picker">Nenhum seletor de arquivos disponível: %1$s</string>
-    <string name="setup_toast_reset_auto">Redefinido. O driver recomendado para este dispositivo foi reaplicado.</string>
     <string name="setup_toast_reset_stock">Redefinido. O driver Vulkan embutido do telefone será usado.</string>
     <string name="setup_toast_driver_import_no_tmp">Não foi possível criar a pasta de trabalho para importar o driver</string>
     <string name="setup_toast_driver_import_failed">Falha na importação: %1$s</string>

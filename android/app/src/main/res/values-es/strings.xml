@@ -93,7 +93,6 @@
     <string name="setup_driver_status_manual">Controlador personalizado (importado manualmente): %1$s</string>
     <string name="setup_driver_unknown">(desconocido)</string>
     <string name="setup_toast_no_file_picker">No hay ningún selector de archivos disponible: %1$s</string>
-    <string name="setup_toast_reset_auto">Restablecido. Se volvió a aplicar el controlador recomendado para este dispositivo.</string>
     <string name="setup_toast_reset_stock">Restablecido. Se usará el controlador Vulkan de fábrica del teléfono.</string>
     <string name="setup_toast_driver_import_no_tmp">No se pudo crear la carpeta de trabajo para importar el controlador</string>
     <string name="setup_toast_driver_import_failed">Error al importar: %1$s</string>

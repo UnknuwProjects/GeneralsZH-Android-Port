@@ -93,7 +93,6 @@
     <string name="setup_driver_status_manual">Свой драйвер (импортирован вручную): %1$s</string>
     <string name="setup_driver_unknown">(неизвестно)</string>
     <string name="setup_toast_no_file_picker">Нет доступного файлового менеджера: %1$s</string>
-    <string name="setup_toast_reset_auto">Сброс выполнен. Рекомендуемый для этого устройства драйвер применён снова.</string>
     <string name="setup_toast_reset_stock">Сброс выполнен. Будет использоваться встроенный Vulkan-драйвер телефона.</string>
     <string name="setup_toast_driver_import_no_tmp">Не удалось создать временную папку для импорта драйвера</string>
     <string name="setup_toast_driver_import_failed">Ошибка импорта: %1$s</string>

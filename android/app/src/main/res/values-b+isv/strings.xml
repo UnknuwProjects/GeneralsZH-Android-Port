@@ -93,7 +93,6 @@
     <string name="setup_driver_status_manual">Sobstveny draiver (importovan ručno): %1$s</string>
     <string name="setup_driver_unknown">(nepoznato)</string>
     <string name="setup_toast_no_file_picker">Ne jest dostupny izbirač datotek: %1$s</string>
-    <string name="setup_toast_reset_auto">Vrnjenje izvršeno. Preporučeny draiver za tu děvicu jest znova naložen.</string>
     <string name="setup_toast_reset_stock">Vrnjenje izvršeno. Bude upotrěbjeny vgrajeny Vulkan draiver telefona.</string>
     <string name="setup_toast_driver_import_no_tmp">Ne uspělo storiti radnu papku za import draivera</string>
     <string name="setup_toast_driver_import_failed">Import ne uspěl: %1$s</string>

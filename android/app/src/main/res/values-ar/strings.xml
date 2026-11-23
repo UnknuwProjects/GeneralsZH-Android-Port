@@ -93,7 +93,6 @@
     <string name="setup_driver_status_manual">برنامج تشغيل مخصص (مستورد يدويًا): %1$s</string>
     <string name="setup_driver_unknown">(غير معروف)</string>
     <string name="setup_toast_no_file_picker">لا يوجد أداة اختيار ملفات متاحة: %1$s</string>
-    <string name="setup_toast_reset_auto">تمت إعادة التعيين. تم تطبيق برنامج التشغيل الموصى به لهذا الجهاز مرة أخرى.</string>
     <string name="setup_toast_reset_stock">تمت إعادة التعيين. سيتم استخدام برنامج تشغيل Vulkan المدمج في الهاتف.</string>
     <string name="setup_toast_driver_import_no_tmp">تعذر إنشاء مجلد العمل لاستيراد برنامج التشغيل</string>
     <string name="setup_toast_driver_import_failed">فشل الاستيراد: %1$s</string>

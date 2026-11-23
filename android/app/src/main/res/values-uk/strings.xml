@@ -93,7 +93,6 @@
     <string name="setup_driver_status_manual">Власний драйвер (імпортовано вручну): %1$s</string>
     <string name="setup_driver_unknown">(невідомо)</string>
     <string name="setup_toast_no_file_picker">Немає доступного файлового менеджера: %1$s</string>
-    <string name="setup_toast_reset_auto">Скидання виконано. Рекомендований для цього пристрою драйвер застосовано знову.</string>
     <string name="setup_toast_reset_stock">Скидання виконано. Буде використовуватися вбудований Vulkan-драйвер телефону.</string>
     <string name="setup_toast_driver_import_no_tmp">Не вдалося створити тимчасову папку для імпорту драйвера</string>
     <string name="setup_toast_driver_import_failed">Помилка імпорту: %1$s</string>
