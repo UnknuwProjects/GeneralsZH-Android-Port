@@ -30,6 +30,7 @@
 #include "Common/CRCDebug.h"
 // GeneralsX @feature Android port 20/09/2026 GX_NET_TRACE for the AI stage split
 #include "GXTrace.h"
+#include <chrono>
 #include "Common/GameState.h"
 #include "Common/PerfTimer.h"
 #include "Common/Player.h"
@@ -355,8 +356,44 @@ void AI::reset()
 /**
  * Update the AI system
  */
+// GeneralsX @diag Android port 24/11/2026 Split the AI step in two: the
+// pathfinder queue, which is capped at 5000 cells a frame and so cannot be
+// a 2-second step on its own, and the player updates, which run every
+// AIPlayer's base, team, upgrade and bridge think every frame. Same
+// once-a-second window as [GX-PERF-LOGIC]; measurement only.
+static void gxTraceAIUpdatePhase(double pathfindUs, double playersUs)
+{
+	static std::chrono::steady_clock::time_point s_windowStart = std::chrono::steady_clock::now();
+	static double s_pathfindSum = 0.0, s_pathfindMax = 0.0, s_playersSum = 0.0, s_playersMax = 0.0;
+	static int s_calls = 0;
+
+	s_pathfindSum += pathfindUs;
+	if (pathfindUs > s_pathfindMax)
+		s_pathfindMax = pathfindUs;
+	s_playersSum += playersUs;
+	if (playersUs > s_playersMax)
+		s_playersMax = playersUs;
+	++s_calls;
+
+	const std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+	const double elapsedUs = std::chrono::duration<double, std::micro>(now - s_windowStart).count();
+	if (elapsedUs >= 1'000'000.0 && s_calls > 0)
+	{
+		GX_PERF_TRACE("[GX-PERF-AI] calls=%d pathfind=%.2f/%.2f players=%.2f/%.2f\n",
+			s_calls, s_pathfindSum / 1000.0 / s_calls, s_pathfindMax / 1000.0,
+			s_playersSum / 1000.0 / s_calls, s_playersMax / 1000.0);
+		s_windowStart = now;
+		s_pathfindSum = s_pathfindMax = s_playersSum = s_playersMax = 0.0;
+		s_calls = 0;
+	}
+}
+
 void AI::update()
 {
+	const bool gxPerfAI = GXTrace::isPerfEnabled();
+	std::chrono::steady_clock::time_point gxA0, gxA1, gxA2;
+	if (gxPerfAI) gxA0 = std::chrono::steady_clock::now();
+
 	// Do pathfinding.
 #if defined(GENERALS_ONLINE_HIGH_FPS_SERVER)
 	if (TheGameLogic->HasLegacyFrameAdvanced())
@@ -366,10 +403,18 @@ void AI::update()
 #if defined(GENERALS_ONLINE_HIGH_FPS_SERVER)
 	}
 #endif
+	if (gxPerfAI) gxA1 = std::chrono::steady_clock::now();
 
 	// run player updates
 	{
 		ThePlayerList->UPDATE();
+	}
+	if (gxPerfAI)
+	{
+		gxA2 = std::chrono::steady_clock::now();
+		gxTraceAIUpdatePhase(
+			std::chrono::duration<double, std::micro>(gxA1 - gxA0).count(),
+			std::chrono::duration<double, std::micro>(gxA2 - gxA1).count());
 	}
 
 }

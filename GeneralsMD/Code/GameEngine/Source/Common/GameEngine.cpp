@@ -1190,7 +1190,10 @@ extern NGMPGame* TheNGMPGame;
 // the same order, only grouped differently between draws: replays and saves are unaffected.
 static UnsignedInt s_gxCatchUpSteps = 0;
 
-static void gxCatchUpSpedUpLogic()
+// lastLogicStepMs is how long the regular logic step that just ran took; the
+// catch-up below must not add steps on top of a step that already blew the
+// frame budget (see the guard after the applies check).
+static void gxCatchUpSpedUpLogic(double lastLogicStepMs)
 {
 	static std::chrono::steady_clock::time_point s_last;
 	static double s_debt = 0.0;
@@ -1218,6 +1221,19 @@ static void gxCatchUpSpedUpLogic()
 		&& TheFramePacer->isActualFramesPerSecondLimitEnabled()
 		&& TheFramePacer->getActualFramesPerSecondLimit() > normalFps;
 	if (!applies)
+	{
+		s_debt = 0.0;
+		return;
+	}
+
+	// GeneralsX @performance Android port 24/11/2026 A logic step that already
+	// took longer than one frame interval means the game is behind because the
+	// simulation itself is slow, not because drawing is slow: running extra
+	// steps in this frame only doubles the frame time (build 10417: a 2080 ms
+	// step plus one catch-up step made a 4195 ms frame). Drop the debt instead
+	// of adding to it -- the game then runs slower than asked, never stuck
+	// catching up, which is what the original engine does at normal speed.
+	if (lastLogicStepMs > 1000.0 / TheFramePacer->getActualFramesPerSecondLimit())
 	{
 		s_debt = 0.0;
 		return;
@@ -1406,10 +1422,12 @@ void GameEngine::update()
 		}
 
 		// TheSuperHackers @info Ignores frozen time because the script engine needs updating in the logic update regardless.
-		double logicUs = 0.0, stepUs = 0.0;
+		double logicUs = 0.0, stepUs = 0.0, gxLogicStepMs = 0.0;
 		if (canUpdateGameLogic(FramePacer::IgnoreFrozenTime))
 		{
+			const std::chrono::steady_clock::time_point gxLogicT0 = std::chrono::steady_clock::now();
 			TheGameLogic->UPDATE();
+			gxLogicStepMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - gxLogicT0).count();
 			if (gxPerfTrace) gxT5 = std::chrono::steady_clock::now();
 
 			if (!TheFramePacer->isTimeFrozen())
@@ -1425,7 +1443,7 @@ void GameEngine::update()
 			}
 		}
 
-		gxCatchUpSpedUpLogic();
+		gxCatchUpSpedUpLogic(gxLogicStepMs);
 
 		// GeneralsX @feature Android port 23/09/2026 Replay check: fast-forward extra
 		// logic frames and quit with a result file when asked to (GXReplayCheck.h).

@@ -30,6 +30,7 @@
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
 #ifndef _WIN32
+#include <chrono>
 #include <fenv.h>
 #include <map>
 #include <vector>
@@ -4116,8 +4117,66 @@ void gxPhysNote(Char kind, UnsignedInt id, const Real *values, Int count)
 		gxPhysPrint(r);
 }
 #else
-#define GX_FP_BLAME(phase, obj, u) do {} while (0)
-#endif
+// GeneralsX @diag Android port 24/11/2026 Which subsystem owns a slow logic step.
+// Build 10417: a new game on a 440x440 map slows from 14 fps to 0.2 fps in
+// two minutes, and [GX-PERF] shows the whole cost in one number -- one logic
+// step growing to 2080 ms while the client phase stays at 6 ms -- while the
+// renderer is proven innocent (view 0.34 ms, present 0.03 ms). This splits
+// that step per subsystem, once a second, in the same window as [GX-PERF]:
+// average and worst per call, so a subsystem that runs every frame and one
+// that spikes periodically are told apart. Measurement only: no behaviour
+// change, and when the perf gate is off the cost is the single
+// isPerfEnabled() check in update(). Object count is sampled at flush time
+// (once a second), so the next log can tell whether the cost tracks the
+// number of objects in the game.
+static void gxTraceLogicUpdatePhase(
+	double scriptUs, double terrainUs, double crcUs, double statsUs,
+	double recorderUs, double commandsUs, double normalUs, double sleepyUs,
+	double aiUs, double buildUs, double partitionUs, double destroyUs,
+	double disabledUs, UnsignedInt frame)
+{
+	static std::chrono::steady_clock::time_point s_windowStart = std::chrono::steady_clock::now();
+	static double s_sum[13] = {};
+	static double s_max[13] = {};
+	static int s_calls = 0;
+
+	const double phases[13] = { scriptUs, terrainUs, crcUs, statsUs, recorderUs, commandsUs, normalUs, sleepyUs, aiUs, buildUs, partitionUs, destroyUs, disabledUs };
+	for (int i = 0; i < 13; ++i)
+	{
+		s_sum[i] += phases[i];
+		if (phases[i] > s_max[i])
+			s_max[i] = phases[i];
+	}
+	++s_calls;
+
+	const std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+	const double elapsedUs = std::chrono::duration<double, std::micro>(now - s_windowStart).count();
+	if (elapsedUs >= 1'000'000.0 && s_calls > 0)
+	{
+		GX_PERF_TRACE("[GX-PERF-LOGIC] calls=%d obj=%u frame=%u script=%.2f/%.2f terrain=%.2f/%.2f crc=%.2f/%.2f stats=%.2f/%.2f rec=%.2f/%.2f cmd=%.2f/%.2f normal=%.2f/%.2f sleepy=%.2f/%.2f ai=%.2f/%.2f build=%.2f/%.2f part=%.2f/%.2f destr=%.2f/%.2f disab=%.2f/%.2f\n",
+			s_calls, (unsigned)TheGameLogic->getObjectCount(), (unsigned)frame,
+			s_sum[0] / 1000.0 / s_calls, s_max[0] / 1000.0,
+			s_sum[1] / 1000.0 / s_calls, s_max[1] / 1000.0,
+			s_sum[2] / 1000.0 / s_calls, s_max[2] / 1000.0,
+			s_sum[3] / 1000.0 / s_calls, s_max[3] / 1000.0,
+			s_sum[4] / 1000.0 / s_calls, s_max[4] / 1000.0,
+			s_sum[5] / 1000.0 / s_calls, s_max[5] / 1000.0,
+			s_sum[6] / 1000.0 / s_calls, s_max[6] / 1000.0,
+			s_sum[7] / 1000.0 / s_calls, s_max[7] / 1000.0,
+			s_sum[8] / 1000.0 / s_calls, s_max[8] / 1000.0,
+			s_sum[9] / 1000.0 / s_calls, s_max[9] / 1000.0,
+			s_sum[10] / 1000.0 / s_calls, s_max[10] / 1000.0,
+			s_sum[11] / 1000.0 / s_calls, s_max[11] / 1000.0,
+			s_sum[12] / 1000.0 / s_calls, s_max[12] / 1000.0);
+		s_windowStart = now;
+		for (int i = 0; i < 13; ++i)
+		{
+			s_sum[i] = 0.0;
+			s_max[i] = 0.0;
+		}
+		s_calls = 0;
+	}
+}
 
 void GameLogic::update()
 {
@@ -4187,11 +4246,17 @@ void GameLogic::update()
 
 	PROFILER_PLOT("LogicFrame", static_cast<int64_t>(now));
 
+	// GeneralsX @diag Android port 24/11/2026 See gxTraceLogicUpdatePhase above.
+	const bool gxPerfLogic = GXTrace::isPerfEnabled();
+	std::chrono::steady_clock::time_point gxL0, gxL1, gxL2, gxL3, gxL4, gxL5, gxL6, gxL7, gxL8, gxL9, gxL10, gxL11, gxL12, gxL13;
+	if (gxPerfLogic) gxL0 = std::chrono::steady_clock::now();
+
 	// update (execute) scripts
 	{
 		TheScriptEngine->UPDATE();
 	}
 	GX_FP_BLAME("ScriptEngine", nullptr, nullptr);
+	if (gxPerfLogic) gxL1 = std::chrono::steady_clock::now();
 
 	// TheSuperHackers @info Updates the frozen time status because it may have changed after the script engine update.
 	TheFramePacer->setTimeFrozen(TheGameEngine->isTimeFrozen());
@@ -4205,6 +4270,7 @@ void GameLogic::update()
 		TheTerrainLogic->UPDATE();
 	}
 	GX_FP_BLAME("TerrainLogic", nullptr, nullptr);
+	if (gxPerfLogic) gxL2 = std::chrono::steady_clock::now();
 
 	// force CRC calculation, so we can keep a cache of the last N CRCs.  We do this right where the recorder
 	// would be getting the CRC anyway, so replays can get the CRCs from the exact instant in time as the original.
@@ -4256,23 +4322,27 @@ void GameLogic::update()
 				(unsigned)m_frame, (int)k, (unsigned)GXGameLogicRandomSeedCRCAfter(k));
 		fflush(stderr);
 	}
+	if (gxPerfLogic) gxL3 = std::chrono::steady_clock::now();
 
 	// collect stats
 	if(TheStatsCollector)
 	{
 		TheStatsCollector->update();
 	}
+	if (gxPerfLogic) gxL4 = std::chrono::steady_clock::now();
 
 	// Update the Recorder
 	{
 		TheRecorder->UPDATE();
 	}
+	if (gxPerfLogic) gxL5 = std::chrono::steady_clock::now();
 
 	// process client commands
 	{
 		processCommandList( TheCommandList );
 	}
 	GX_FP_BLAME("Commands", nullptr, nullptr);
+	if (gxPerfLogic) gxL6 = std::chrono::steady_clock::now();
 
 #ifdef ALLOW_NONSLEEPY_UPDATES
 	{
@@ -4307,6 +4377,7 @@ void GameLogic::update()
 		}
 	}
 #endif
+	if (gxPerfLogic) gxL7 = std::chrono::steady_clock::now();
 
 	{
 		while (!m_sleepyUpdates.empty())
@@ -4361,24 +4432,28 @@ void GameLogic::update()
 	}
 
 	validateSleepyUpdate();
+	if (gxPerfLogic) gxL8 = std::chrono::steady_clock::now();
 
 	// update the Artificial Intelligence system
 	{
 		TheAI->UPDATE();
 	}
 	GX_FP_BLAME("AI", nullptr, nullptr);
+	if (gxPerfLogic) gxL9 = std::chrono::steady_clock::now();
 
 	// production updates
 	{
 		TheBuildAssistant->UPDATE();
 	}
 	GX_FP_BLAME("BuildAssistant", nullptr, nullptr);
+	if (gxPerfLogic) gxL10 = std::chrono::steady_clock::now();
 
 	// update partition info
 	{
 		ThePartitionManager->UPDATE();
 	}
 	GX_FP_BLAME("PartitionManager", nullptr, nullptr);
+	if (gxPerfLogic) gxL11 = std::chrono::steady_clock::now();
 
 	//
 	// End of frame clean-up
@@ -4395,6 +4470,7 @@ void GameLogic::update()
 	TheLocomotorStore->UPDATE();
 	TheVictoryConditions->UPDATE();
 	GX_FP_BLAME("Stores", nullptr, nullptr);
+	if (gxPerfLogic) gxL12 = std::chrono::steady_clock::now();
 
 	{
 		//Handle disabled statii (and re-enable objects once frame matches)
@@ -4407,6 +4483,25 @@ void GameLogic::update()
 		}
 	}
 	GX_FP_BLAME("DisabledStatus", nullptr, nullptr);
+	if (gxPerfLogic)
+	{
+		gxL13 = std::chrono::steady_clock::now();
+		gxTraceLogicUpdatePhase(
+			std::chrono::duration<double, std::micro>(gxL1 - gxL0).count(),
+			std::chrono::duration<double, std::micro>(gxL2 - gxL1).count(),
+			std::chrono::duration<double, std::micro>(gxL3 - gxL2).count(),
+			std::chrono::duration<double, std::micro>(gxL4 - gxL3).count(),
+			std::chrono::duration<double, std::micro>(gxL5 - gxL4).count(),
+			std::chrono::duration<double, std::micro>(gxL6 - gxL5).count(),
+			std::chrono::duration<double, std::micro>(gxL7 - gxL6).count(),
+			std::chrono::duration<double, std::micro>(gxL8 - gxL7).count(),
+			std::chrono::duration<double, std::micro>(gxL9 - gxL8).count(),
+			std::chrono::duration<double, std::micro>(gxL10 - gxL9).count(),
+			std::chrono::duration<double, std::micro>(gxL11 - gxL10).count(),
+			std::chrono::duration<double, std::micro>(gxL12 - gxL11).count(),
+			std::chrono::duration<double, std::micro>(gxL13 - gxL12).count(),
+			m_frame);
+	}
 
 
 
