@@ -32,6 +32,21 @@ android {
             v2SigningEnabled true
             v3SigningEnabled true
         }
+        release {
+            // GeneralsX @build Android port 23/11/2026 The UnknuwProjects
+            // release key, not the debug one: the CI workflow decodes the
+            // keystore from the ANDROID_KEYSTORE_BASE64 secret and passes
+            // these four values as environment variables. Without them (a
+            // local or fork build) it falls back to the debug keystore, so
+            // the build still works — it just signs like a debug build.
+            storeFile file(System.getenv('ANDROID_KEYSTORE_FILE') ?: 'debug.keystore')
+            storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD') ?: 'android'
+            keyAlias System.getenv('ANDROID_KEY_ALIAS') ?: 'androiddebugkey'
+            keyPassword System.getenv('ANDROID_KEY_PASSWORD') ?: 'android'
+            v1SigningEnabled true
+            v2SigningEnabled true
+            v3SigningEnabled true
+        }
     }
 
     defaultConfig {
@@ -114,10 +129,12 @@ android {
         }
         release {
             minifyEnabled false
-            // Sideload builds sign with the same fixed debug key; Play
-            // distribution is out of scope for a GPL port of a game whose
-            // assets the user must own.
-            signingConfig signingConfigs.debug
+            // Release builds sign with the UnknuwProjects release key when
+            // the CI workflow provides it (see signingConfigs.release); a
+            // local or fork build without it falls back to the debug key.
+            // Play distribution is out of scope for a GPL port of a game
+            // whose assets the user must own.
+            signingConfig signingConfigs.release
         }
     }
 

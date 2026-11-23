@@ -9,7 +9,10 @@
 #      in-tree SDL3 source, so Java and native SDL always match versions.
 #   3. Stage small runtime assets bundled into the APK and extracted on first
 #      launch: fonts/ (Liberation, renamed), dxvk.conf, DefaultOptions.ini.
-#   4. gradle assembleDebug -> app-debug.apk, ready for adb install.
+#   4. gradle assemble<Variant> -> app-<variant>.apk, ready for adb install.
+#      Variant is GX_ANDROID_VARIANT (debug by default, release for CI):
+#      release signs with the UnknuwProjects release key when the
+#      ANDROID_KEYSTORE_* environment variables are present.
 #
 # Game .big archives are NOT packaged: the user copies their own game data to
 # /storage/emulated/0/Android/data/com.generalsx.zerohour/files/ (see
@@ -326,14 +329,15 @@ find "${DEFAULT_DRIVER_ASSETS}" -type f | sed "s|${DEFAULT_DRIVER_ASSETS}/|    d
 ENGINE_BUILD="$(git -C "${PROJECT_ROOT}" rev-list --count HEAD 2>/dev/null || echo 0)"
 echo "${ENGINE_BUILD}" > "${ANDROID_DIR}/app/src/main/assets/engine_build.txt"
 # GeneralsX @feature Android port 18/10/2026 Update channel (UpdateManager.isTestChannel): a test
-# build reads the updates-test branch, a release the updates branch. Releases leave it unset.
+# build reads updates-test/ on custom-driver, a release reads updates/ on custom-driver.
+# Releases leave it unset.
 CHANNEL_FILE="${ANDROID_DIR}/app/src/main/assets/update_channel.txt"
 if [[ "${GX_UPDATE_CHANNEL:-}" == "test" ]]; then
     echo "test" > "${CHANNEL_FILE}"
-    echo "==> Update channel: test (updates-test branch)"
+    echo "==> Update channel: test (custom-driver/updates-test)"
 else
     rm -f "${CHANNEL_FILE}"
-    echo "==> Update channel: release (updates branch)"
+    echo "==> Update channel: release (custom-driver/updates)"
 fi
 echo "==> Engine build number: ${ENGINE_BUILD}"
 
@@ -367,10 +371,20 @@ if [[ -n "${GX_ANDROID_VERSION_NAME:-}" ]]; then
     GRADLE_VERSION_ARG="${GRADLE_VERSION_ARG} -PandroidVersionName=${GX_ANDROID_VERSION_NAME}"
 fi
 
-echo "==> ${GRADLE_CMD} assembleDebug ${GRADLE_VERSION_ARG}"
-"${GRADLE_CMD}" assembleDebug ${GRADLE_VERSION_ARG}
+# GeneralsX @build Android port 23/11/2026 Build variant: debug by default
+# (local builds, adb install); CI sets GX_ANDROID_VARIANT=release so the
+# shipped APK is a release build signed with the UnknuwProjects release
+# key. A case statement, not ${VARIANT^}: this script also runs on macOS,
+# whose /bin/bash is 3.2 and has no case modification.
+case "${GX_ANDROID_VARIANT:-debug}" in
+    release) GRADLE_TASK="assembleRelease"; APK_DIR="release"; APK_NAME="app-release.apk" ;;
+    *)       GRADLE_TASK="assembleDebug";   APK_DIR="debug";   APK_NAME="app-debug.apk" ;;
+esac
 
-APK="${ANDROID_DIR}/app/build/outputs/apk/debug/app-debug.apk"
+echo "==> ${GRADLE_CMD} ${GRADLE_TASK} ${GRADLE_VERSION_ARG}"
+"${GRADLE_CMD}" "${GRADLE_TASK}" ${GRADLE_VERSION_ARG}
+
+APK="${ANDROID_DIR}/app/build/outputs/apk/${APK_DIR}/${APK_NAME}"
 if [[ ! -f "${APK}" ]]; then
     echo "ERROR: expected APK not found at ${APK}"
     exit 1
