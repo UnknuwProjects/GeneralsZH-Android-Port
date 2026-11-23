@@ -294,6 +294,19 @@ static void FilterPipeWireOpenAL()
 }
 
 #if defined(__ANDROID__)
+// GeneralsX @bugfix Android port 23/11/2026 linkernsbypass_load_status()
+// is libadrenotools' first bail-out inside adrenotools_open_libvulkan()
+// (driver.cpp): false means its constructor could not resolve the device
+// linker's symbols, and the open returns nullptr before touching the
+// driver file. It is NOT in adrenotools' public header, and the symbol is
+// hidden from libadrenotools.so's dynamic table
+// (--exclude-libs,liblinkernsbypass.a in its CMakeLists when built shared,
+// which this project does), so it is declared weak here: a direct
+// reference would make libmain.so fail to load on a device where the
+// symbol is not exported, while a weak one simply reads as null and the
+// probe below logs that instead of crashing the launch.
+extern "C" bool linkernsbypass_load_status() __attribute__((weak));
+
 /**
  * TryLoadCustomVulkanDriver
  *
@@ -400,25 +413,31 @@ static void TryLoadCustomVulkanDriver(const char *internalPath)
 		return;
 	}
 
-	void *mappingHandle = nullptr;
-	// GeneralsX @bugfix Android port 01/08/2026 The trailing-slash fix above
+	// GeneralsX @bugfix Android port 23/11/2026 The trailing-slash fix above
 	// (commit 453bb4ec6) didn't resolve the real-device failure -- still
-	// "(none)" from dlerror() after that fix too, meaning either the stat()
-	// pre-check still isn't finding the file for some OTHER reason, or the
-	// failure is actually happening at one of adrenotools' EARLIER,
-	// dlopen()-independent bail-outs (driver.cpp: linkernsbypass_load_status()
-	// failing "probably means we're on api < 28", or the isolated-namespace
-	// creation/linking step) -- both return nullptr just as silently as the
-	// stat() check does. Replicate adrenotools' own concatenation and stat()
-	// here, and log the device API level, to see exactly which one it is.
+	// "(none)" from dlerror() after that fix too. The real cause was the
+	// last argument of the adrenotools_open_libvulkan() call below: it
+	// rejects a non-null userMappingHandle unless
+	// ADRENOTOOLS_DRIVER_GPU_MAPPING_IMPORT is set (driver.cpp, the
+	// parameter checks right after the linkernsbypass_load_status()
+	// bail-out), returning nullptr before it ever stats or dlopens the
+	// driver file -- which is why dlerror() was empty. This app never uses
+	// the GPU mapping (no adrenotools_import_user_mem /
+	// adrenotools_mem_gpu_allocate calls anywhere), so pass nullptr; do NOT
+	// "fix" it by adding the flag, which would enable the KGSL mapping hook
+	// path (/dev/kgsl-3d0, Adreno-only, absent on Mali). The probe below
+	// also logs linkernsbypass_load_status(), the other silent bail-out:
+	// false there names the linker-symbol resolution on this ROM as the
+	// cause if the load still fails.
 	{
 		std::string probePath = std::string(driverDir) + driverName;
 		struct stat probeBuf{};
 		int probeResult = stat(probePath.c_str(), &probeBuf);
-		fprintf(stderr, "INFO: TryLoadCustomVulkanDriver probe: path='%s' stat=%d (errno=%d: %s) apiLevel=%d\n",
+		fprintf(stderr, "INFO: TryLoadCustomVulkanDriver probe: path='%s' stat=%d (errno=%d: %s) apiLevel=%d linkernsbypass=%s\n",
 		        probePath.c_str(), probeResult, probeResult == 0 ? 0 : errno,
 		        probeResult == 0 ? "ok" : strerror(errno),
-		        android_get_device_api_level());
+		        android_get_device_api_level(),
+		        linkernsbypass_load_status ? (linkernsbypass_load_status() ? "loaded" : "FAILED") : "unknown (symbol not exported)");
 	}
 	void *lib = adrenotools_open_libvulkan(
 		RTLD_NOW,
@@ -428,7 +447,7 @@ static void TryLoadCustomVulkanDriver(const char *internalPath)
 		driverDir,
 		driverName,
 		/* fileRedirectDir */ nullptr,
-		&mappingHandle);
+		/* userMappingHandle */ nullptr);
 
 	if (lib == nullptr) {
 		// GeneralsX @bugfix Android port 01/08/2026 adrenotools_open_libvulkan()
