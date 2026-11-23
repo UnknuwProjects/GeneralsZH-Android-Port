@@ -63,8 +63,13 @@ final class UpdateManager {
     private static final String TAG = "GXUpdate";
 
     /** Where every update branch is served from; the branch is the channel's. */
+    // GeneralsX @feature Android port 23/11/2026 Fork serves its own updates channel, not
+    // upstream's: upstream's manifest is signed with upstream's key and carries upstream's
+    // engine, so applying it here would replace this fork's engine (terrain and driver
+    // fixes included) with upstream's. Until this fork publishes its own updates branch
+    // with its own signing key, the check just fails quietly (see check()).
     static final String RAW_ROOT =
-        "https://raw.githubusercontent.com/MYSOREZ/GeneralsZH-Android-Port/";
+        "https://raw.githubusercontent.com/UnknuwProjects/GeneralsZH-Android-Port/";
 
     /**
      * GeneralsX @feature Android port 18/10/2026 Two channels. Releases read the {@code updates}
