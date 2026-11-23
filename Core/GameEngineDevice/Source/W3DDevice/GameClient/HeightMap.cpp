@@ -60,6 +60,7 @@
 #include <d3dx8core.h>
 #include "Common/GlobalData.h"
 #include "Common/PerfTimer.h"
+#include "GXTrace.h"
 
 #include "GameClient/TerrainVisual.h"
 #include "GameClient/View.h"
@@ -2003,6 +2004,23 @@ void HeightMapRenderObjClass::updateCenter(CameraClass *camera, const Vector3 *c
 		++s_gxDiagCenterFull;
 		m_needFullUpdate = false;
 		m_map->setDrawArea(newDrawArea);
+		// GeneralsX @diag author 24/11/2026 Where the draw window sits
+		// after a full rewrite, against the camera pivot: build 10416
+		// starts a new game on a black 3D view until the zoom is just
+		// right, with the terrain itself drawn the whole time (330
+		// draws a frame), so the next log has to tell the shroud apart
+		// from a misplaced window. If the pivot (the base, at game
+		// start) is inside the window, the black is the shroud over
+		// unexplored ground; if it sits outside it, the window is
+		// centered somewhere the camera is not looking. The pivot is
+		// printed in the same map-cell frame as the origin (world
+		// units / 10, plus the border). Full updates only happen on
+		// a map load or a draw-size change, so this line is rare.
+		GX_PERF_TRACE("[GX-DRAWORG] org=%d,%d win=%dx%d pivot=%d,%d extent=%dx%d\n",
+			newDrawArea.originX, newDrawArea.originY, m_x, m_y,
+			(Int)(cameraPivot->X / MAP_XY_FACTOR) + m_map->getBorderSizeInline(),
+			(Int)(cameraPivot->Y / MAP_XY_FACTOR) + m_map->getBorderSizeInline(),
+			m_map->getXExtent(), m_map->getYExtent());
 		updateBlock(0, 0, m_x-1, m_y-1, m_map, pLightsIterator);
 		m_updating = false;
 		return;

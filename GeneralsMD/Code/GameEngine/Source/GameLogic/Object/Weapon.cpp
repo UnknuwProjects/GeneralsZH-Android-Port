@@ -2925,6 +2925,16 @@ Bool Weapon::privateFireWeapon(
 			m_numShotsForCurBarrel = m_template->getShotsPerBarrel();
 		}
 
+		// GeneralsX @bugfix Android port 24/11/2026 Remember the slot
+		// before firing: the shot below can rebuild the weapon set
+		// (see WeaponTemplate::fireWeaponTemplate), which deletes this
+		// Weapon, so the slot -- not this pointer -- is what tells us
+		// afterwards whether this Weapon still exists. The slot is
+		// captured here, not read after the shot, because reading
+		// m_wslot out of a freed Weapon would itself be a
+		// use-after-free.
+		WeaponSlotType wslot = m_wslot;
+
 		if( !m_scatterTargetsUnused.empty() )
 		{
 			// If I have a set scatter pattern, I need to offset the target by a random pick from that pattern
@@ -2957,6 +2967,29 @@ Bool Weapon::privateFireWeapon(
 		{
 			m_template->fireWeaponTemplate(sourceObj, m_wslot, m_curBarrel, victimObj, victimPos, bonus, isProjectileDetonation, ignoreRanges, this, projectileID, inflictDamage );
 		}
+
+		// GeneralsX @bugfix Android port 24/11/2026 The shot above can
+		// delete this Weapon: creating the projectile may grant a
+		// player upgrade, and Player::addUpgrade runs
+		// updateUpgradeModules on every object of that player, so a
+		// WeaponSetUpgrade on the firer rebuilds the weapon set and
+		// deletes the Weapon that just fired. Build 10416 crashed in
+		// the bookkeeping below because the freed block was NOT reused
+		// by a new Weapon this time -- the rebuilt set has no weapon
+		// in this slot, so nothing reallocated the block and m_template
+		// stayed the wild 0x17 the crash log showed. The plain field
+		// writes below it (ammo, barrel, frame) did not fault only
+		// because the freed block is still mapped memory; they wrote
+		// into whatever reused it. The first pointer chase,
+		// m_template->getShotsPerBarrel(), faulted at 0x17+0x250.
+		// If the slot no longer holds this Weapon, it was freed, so
+		// there is no ammo or cooldown bookkeeping left to do: the new
+		// weapon in the slot, if any, is fresh and has not fired.
+		// Returning false is right here -- no reload happened -- and
+		// the caller (Object::fireCurrentWeapon) already re-fetches
+		// the slot for its own bookkeeping.
+		if (sourceObj->getWeaponInWeaponSlot(wslot) != this)
+			return false;
 
 		m_lastFireFrame = now;
 		--m_ammoInClip;
