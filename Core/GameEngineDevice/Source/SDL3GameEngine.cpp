@@ -2792,6 +2792,47 @@ void SDL3GameEngine::update(void)
 	gxRequestSurfaceFrameRate(m_SDLWindow);
 #endif
 	GameEngine::update();
+
+	// GeneralsX @feature Android port 23/11/2026 FPS watch log: one [gxfps] line every 5 s
+	// while a real game runs (not the menu, not the shell demo), so a slow session can be
+	// diagnosed from generals-stderr.log without adb. fps is the drawn frames per second
+	// averaged over the window, sim the logic rate (30 or 60 Hz), pace how fast game time
+	// runs against real time (1.00 is full speed, 0.15 means the game crawls at 15%),
+	// step the logic step, frame the average drawn frame time, limit the FPS cap.
+	// A line is skipped while paused or frozen (sim 0), and the window restarts on leaving
+	// a game so menu frames never pollute the average.
+	static Uint64 s_gxFpsWindowStart = 0;
+	static unsigned s_gxFpsFrames = 0;
+	static Bool s_gxFpsHeaderPrinted = FALSE;
+	const Bool inRealGame = (TheGameLogic != nullptr && TheGameLogic->isInGame() &&
+	                         !TheGameLogic->isInShellGame());
+	const Int simFps = (TheFramePacer != nullptr) ? TheFramePacer->getActualLogicTimeScaleFps() : 0;
+	if (inRealGame && simFps > 0) {
+		if (s_gxFpsWindowStart == 0) {
+			s_gxFpsWindowStart = SDL_GetTicks();
+		}
+		++s_gxFpsFrames;
+		const Uint64 now = SDL_GetTicks();
+		const Uint64 elapsedMs = now - s_gxFpsWindowStart;
+		if (elapsedMs >= 5000) {
+			const Real avgFps = (Real)s_gxFpsFrames * 1000.0f / (Real)elapsedMs;
+			const Real pace = (avgFps >= (Real)simFps) ? 1.0f : avgFps / (Real)simFps;
+			if (!s_gxFpsHeaderPrinted) {
+				fprintf(stderr, "[gxfps] fps=drawn frames/s (5 s average), sim=logic Hz, pace=game-time vs real-time (1.00 is full speed), step=logic step, frame=drawn frame time, limit=FPS cap\n");
+				s_gxFpsHeaderPrinted = TRUE;
+			}
+			fprintf(stderr, "[gxfps] fps=%.1f sim=%dHz pace=%.2f step=%.1fms frame=%.1fms limit=%d\n",
+			        avgFps, (int)simFps, pace,
+			        (TheFramePacer != nullptr) ? TheFramePacer->getLogicTimeStepMilliseconds() : 0.0f,
+			        (Real)elapsedMs / (Real)s_gxFpsFrames,
+			        (TheFramePacer != nullptr) ? (int)TheFramePacer->getActualFramesPerSecondLimit() : 0);
+			s_gxFpsWindowStart = now;
+			s_gxFpsFrames = 0;
+		}
+	} else {
+		s_gxFpsWindowStart = 0;
+		s_gxFpsFrames = 0;
+	}
 }
 
 /**
