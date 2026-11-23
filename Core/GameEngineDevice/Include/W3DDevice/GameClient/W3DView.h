@@ -296,6 +296,14 @@ private:
 	Bool m_recalcCameraConstraintsAfterScrolling; ///< Recalculates the camera area constraints after the user has moved the camera
 	Bool m_recalcCamera; ///< Recalculates the camera transform in the next render update
 
+	// GeneralsX @performance Android port 23/11/2026 Camera transform and
+	// pivot at the last terrain-center update, for the idle skip in
+	// updateTerrain(): when neither has changed and no full terrain update
+	// is pending, updateCenter() would rewrite nothing, so it is skipped.
+	Matrix3D m_gxTerrainLastCameraTransform;
+	Vector3 m_gxTerrainLastCameraPivot;
+	Bool m_gxTerrainHaveLastCamera;
+
 	Real getHeightAroundPos(Real x, Real y, Real terrainSampleSize = TERRAIN_SAMPLE_SIZE) const;
 	Real getCameraOffsetZ() const;
 	Real getDesiredHeight(Real x, Real y) const;

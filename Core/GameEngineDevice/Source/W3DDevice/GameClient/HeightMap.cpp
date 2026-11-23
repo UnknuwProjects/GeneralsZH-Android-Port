@@ -352,7 +352,23 @@ Int HeightMapRenderObjClass::updateVB(DX8VertexBufferClass	*pVB, VERTEX_FORMAT *
 		assert(x0 >= originX && y0 >= originY && x1>x0 && y1>y0 && x1<=originX+VERTEX_BUFFER_TILE_LENGTH && y1<=originY+VERTEX_BUFFER_TILE_LENGTH);
 #endif
 
-		DX8VertexBufferClass::WriteLockClass lockVtxBuffer(pVB);
+		// GeneralsX @performance Android port 23/11/2026 Lock only the rows
+		// this call actually rewrites instead of the whole 180 KB tile
+		// buffer: the loops below write rows j in [y0,y1) and columns i in
+		// [x0,x1), 4 vertices per cell, rows laid out vertsPerRow apart, so
+		// the first vertex written is (y0-originY)*vertsPerRow +
+		// (x0-originX)*4 and the last is the 4 vertices of cell
+		// (x1-1, y1-1). The translator uploads just the locked range
+		// (WebGLVertexBuffer::Lock / ensureVBUploaded), so a few-row strip
+		// costs a few KB instead of a full tile. The lock pointer starts
+		// at firstVertex, so the per-cell copy below subtracts it back.
+		// Bounds: the assert above gives y1>y0, x1>x0, y0>=originY,
+		// x0>=originX and x1/y1 within the tile, so firstVertex >= 0 and
+		// lastVertex <= (TILE_LENGTH-1)*vertsPerRow + (TILE_LENGTH-1)*4 + 4
+		// = HEIGHTMAP_VERTEX_NUM, the whole tile.
+		const Int firstVertex = (y0 - originY) * vertsPerRow + (x0 - originX) * 4;
+		const Int lastVertex = (y1 - 1 - originY) * vertsPerRow + (x1 - 1 - originX) * 4 + 4;
+		DX8VertexBufferClass::WriteLockClass lockVtxBuffer(pVB, 0, firstVertex, lastVertex - firstVertex);
 		VERTEX_FORMAT *vbHardware = (VERTEX_FORMAT*)lockVtxBuffer.Get_Vertex_Array();
 		VERTEX_FORMAT *vBase = data;
 		// Note that we are building the vertex buffer data in the memory buffer, data.
@@ -564,8 +580,10 @@ Int HeightMapRenderObjClass::updateVB(DX8VertexBufferClass	*pVB, VERTEX_FORMAT *
 				// Now copy the set of vertices into the hardware buffer.
 				// We don't copy the whole vertex buffer because we often update only
 				// a couple of rows and its a lot faster to just copy the ones that change.
+				// (The lock above starts at firstVertex, so the copy offset is
+				// relative to that, not to the start of the tile.)
 				Int offset = pCurVertices - vBase;
-				memcpy(vbHardware+offset, pCurVertices, 4*sizeof(VERTEX_FORMAT));
+				memcpy(vbHardware + (offset - firstVertex), pCurVertices, 4*sizeof(VERTEX_FORMAT));
 			}
 		}
 		return 0; //success.

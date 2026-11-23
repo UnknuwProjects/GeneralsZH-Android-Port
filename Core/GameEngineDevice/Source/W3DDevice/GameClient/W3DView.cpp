@@ -193,6 +193,7 @@ W3DView::W3DView()
 
 	m_cameraAreaConstraints.zero();
 	m_recalcCamera = false;
+	m_gxTerrainHaveLastCamera = false;
 
 }
 
@@ -452,6 +453,14 @@ Bool W3DView::zoomCameraToDesiredHeight()
 		m_zoom += adjustZoom * adjustFactor;
 		return true;
 	}
+	// GeneralsX @performance Android port 23/11/2026 Snap to the target
+	// instead of leaving a sub-threshold error behind: the exponential
+	// approach above never lands exactly, so without the snap this
+	// function (and movePivotToGround() below) keep nudging the camera by
+	// shrinking amounts forever, m_recalcCamera stays true, and
+	// updateTerrain() re-runs every frame. A sub-0.001 zoom step is
+	// invisible, and landing exactly is what lets the camera go idle.
+	m_zoom = desiredZoom;
 	return false;
 }
 
@@ -503,6 +512,12 @@ Bool W3DView::movePivotToGround()
 
 		return true;
 	}
+	// GeneralsX @performance Android port 23/11/2026 Same snap as
+	// zoomCameraToDesiredHeight() above: land exactly on the ground level
+	// once the error is sub-threshold instead of approaching it forever.
+	// A sub-0.1 world-unit step is invisible, and landing exactly is what
+	// lets the camera go idle so updateTerrain() can skip its recenter.
+	m_pos.z = m_terrainHeightAtPivot;
 	return false;
 }
 
@@ -3879,6 +3894,37 @@ void W3DView::updateTerrain()
 	}
 
 	TheTerrainRenderObject->setTerrainDrawSize(drawWidth, drawHeight);
+
+	// GeneralsX @performance Android port 23/11/2026 Skip the recenter
+	// when the camera has not actually moved since the last terrain
+	// update: updateCenter() decides what to rewrite from the camera
+	// transform and pivot, so with both identical -- and no full update
+	// pending -- it would rewrite nothing, yet the call itself costs the
+	// frustum pre-pass and the tree/prop/bridge updates every frame. The
+	// gate sits after setTerrainDrawSize on purpose: a size change sets
+	// m_needFullUpdate, so a resize still runs. Exact comparison is
+	// deliberate: any real camera move, however small, runs the update,
+	// and the zoom snap below is what makes the transform stop changing
+	// once the camera has settled.
+	const Matrix3D &gxCameraTransform = m_3DCamera->Get_Transform();
+	if (!TheTerrainRenderObject->doesNeedFullUpdate()
+		&& m_gxTerrainHaveLastCamera
+		&& m_gxTerrainLastCameraPivot == cameraPivot
+		&& m_gxTerrainLastCameraTransform == gxCameraTransform)
+	{
+		if (it)
+		{
+			W3DDisplay::m_3DScene->destroyLightsIterator(it);
+			it = nullptr;
+		}
+		s_gxDiagTerrainUs += std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - gxDiagStart).count();
+		++s_gxDiagTerrainCalls;
+		return;
+	}
+	m_gxTerrainLastCameraTransform = gxCameraTransform;
+	m_gxTerrainLastCameraPivot = cameraPivot;
+	m_gxTerrainHaveLastCamera = true;
+
 	TheTerrainRenderObject->updateCenter(m_3DCamera, &cameraPivot, it);
 
 	if (it)

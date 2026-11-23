@@ -191,6 +191,46 @@ VertexBufferClass::WriteLockClass::WriteLockClass(VertexBufferClass* VertexBuffe
 
 // ----------------------------------------------------------------------------
 
+VertexBufferClass::WriteLockClass::WriteLockClass(VertexBufferClass* VertexBuffer, int flags, unsigned start_vertex, unsigned vertex_count)
+	:
+	VertexBufferLockClass(VertexBuffer)
+{
+	DX8_THREAD_ASSERT();
+	WWASSERT(VertexBuffer);
+	WWASSERT(!VertexBuffer->Engine_Refs());
+	WWASSERT(start_vertex + vertex_count <= VertexBuffer->Get_Vertex_Count());
+	VertexBuffer->Add_Ref();
+	switch (VertexBuffer->Type()) {
+	case BUFFER_TYPE_DX8:
+#ifdef VERTEX_BUFFER_LOG
+		{
+			StringClass fvf_name;
+			VertexBuffer->FVF_Info().Get_FVF_Name(fvf_name);
+			WWDEBUG_SAY(("VertexBuffer->Lock(start_index: %d, index_range: %d, fvf_size: %d, fvf: %s)",
+				start_vertex,
+				vertex_count,
+				VertexBuffer->FVF_Info().Get_FVF_Size(),
+				fvf_name));
+		}
+#endif
+		DX8_Assert();
+		DX8_ErrorCode(static_cast<DX8VertexBufferClass*>(VertexBuffer)->Get_DX8_Vertex_Buffer()->Lock(
+			start_vertex * VertexBuffer->FVF_Info().Get_FVF_Size(),
+			vertex_count * VertexBuffer->FVF_Info().Get_FVF_Size(),
+			(unsigned char**)&Vertices,
+			flags));	//flags
+		break;
+	case BUFFER_TYPE_SORTING:
+		Vertices = static_cast<SortingVertexBufferClass*>(VertexBuffer)->VertexBuffer + start_vertex;
+		break;
+	default:
+		WWASSERT(0);
+		break;
+	}
+}
+
+// ----------------------------------------------------------------------------
+
 VertexBufferClass::WriteLockClass::~WriteLockClass()
 {
 	DX8_THREAD_ASSERT();

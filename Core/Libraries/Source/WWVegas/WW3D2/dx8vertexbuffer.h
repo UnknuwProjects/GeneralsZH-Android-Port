@@ -92,6 +92,14 @@ public:
 	{
 	public:
 		WriteLockClass(VertexBufferClass* vertex_buffer, int flags=0);
+		// GeneralsX @performance Android port 23/11/2026 Lock only
+		// [start_vertex, start_vertex + vertex_count) instead of the whole
+		// buffer, so the translator uploads just that range (see
+		// WebGLVertexBuffer::Lock / ensureVBUploaded in d3d8gles). Same
+		// byte math as AppendLockClass; Get_Vertex_Array() points at the
+		// first locked vertex, not at the start of the buffer, so callers
+		// must offset their writes by start_vertex.
+		WriteLockClass(VertexBufferClass* vertex_buffer, int flags, unsigned start_vertex, unsigned vertex_count);
 		~WriteLockClass();
 	};
 
