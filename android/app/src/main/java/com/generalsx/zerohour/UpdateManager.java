@@ -29,7 +29,8 @@ import java.util.zip.GZIPInputStream;
 /**
  * GeneralsX @feature Android port 27/09/2026 Updates without reinstalling the APK.
  *
- * The repository's {@code updates} branch holds one commit: {@code manifest.json}, its signature
+ * The manifest lives on this fork's {@code custom-driver} branch, under {@code updates/}
+ * (releases) or {@code updates-test/} (test builds): {@code manifest.json}, its signature
  * {@code manifest.json.sig}, and, when there is one, a newer engine ({@code engine/<seq>/
  * libmain.so.gz}, {@code libmain60.so.gz}). The launcher fetches the manifest, and uses it only if
  *
@@ -66,16 +67,17 @@ final class UpdateManager {
     // GeneralsX @feature Android port 23/11/2026 Fork serves its own updates channel, not
     // upstream's: upstream's manifest is signed with upstream's key and carries upstream's
     // engine, so applying it here would replace this fork's engine (terrain and driver
-    // fixes included) with upstream's. Until this fork publishes its own updates branch
-    // with its own signing key, the check just fails quietly (see check()).
+    // fixes included) with upstream's. The manifest now lives on this fork's custom-driver
+    // branch instead (see baseUrl), signed with the fork's own key below.
     static final String RAW_ROOT =
         "https://raw.githubusercontent.com/UnknuwProjects/GeneralsZH-Android-Port/";
 
     /**
-     * GeneralsX @feature Android port 18/10/2026 Two channels. Releases read the {@code updates}
-     * branch; a test build (assets/update_channel.txt = "test", written by the packaging script
-     * when GX_UPDATE_CHANNEL=test) reads {@code updates-test}, so a test engine reaches testers
-     * over the air without ever being offered to players. Without the file it is a release.
+     * GeneralsX @feature Android port 18/10/2026 Two channels. Releases read {@code updates/}
+     * on the custom-driver branch; a test build (assets/update_channel.txt = "test", written by
+     * the packaging script when GX_UPDATE_CHANNEL=test) reads {@code updates-test/} on the same
+     * branch, so a test engine reaches testers over the air without ever being offered to
+     * players. Without the file it is a release.
      */
     static boolean isTestChannel(Context ctx) {
         if (sTestChannel == null) {
@@ -95,12 +97,18 @@ final class UpdateManager {
     }
 
     static String baseUrl(Context ctx) {
-        return RAW_ROOT + (isTestChannel(ctx) ? "updates-test/" : "updates/");
+        // GeneralsX @feature Android port 23/11/2026 The manifest is served from the
+        // custom-driver branch itself, like the language packs -- not from a separate
+        // updates branch (upstream's layout). The channel is a directory on that branch.
+        return RAW_ROOT + "custom-driver/" + (isTestChannel(ctx) ? "updates-test/" : "updates/");
     }
 
     /** SubjectPublicKeyInfo (DER, base64) of the update signing key. */
+    // GeneralsX @feature Android port 23/11/2026 This is the fork's own key, generated for
+    // this fork (ECDSA P-256). It replaces upstream's public key: upstream's private key is
+    // not ours, so a manifest we publish could never verify against it.
     static final String PUBLIC_KEY_B64 =
-        "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEFjy+4K0lTRmnwQe+nQqXreCMtJehCl1wiYNgq5Rr/MHWkDukps0eUbmuyxSenyFL4T5zo+WBIFeLDO5PXFoG/A==";
+        "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEinSaEtFj41cXB2oCU4n4Rb1hRjsKCkimouGvg84gZYZ/wkNbqvHHT6PP9NjDQQnOvLcfo7k5ammDD0oZ+Voc3g==";
 
     static final String[] ENGINE_LIBS = { "libmain.so", "libmain60.so" };
 
@@ -509,7 +517,7 @@ final class UpdateManager {
                 return false;
             }
             if (!url.startsWith(baseUrl(ctx))) {
-                Log.w(TAG, "support file outside the updates branch: " + url);
+                Log.w(TAG, "support file outside the updates directory: " + url);
                 return false;
             }
             byte[] data = download(url, 256 * 1024);

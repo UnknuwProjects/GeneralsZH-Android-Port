@@ -1,6 +1,6 @@
 # Publishing an update without a new APK
 
-The launcher checks the repository's `updates` branch -- from **Home → Updates** (on start and
+The launcher checks `updates/` on the `custom-driver` branch -- from **Home → Updates** (on start and
 with **Check for updates**) and when the **GeneralsOnline account** screen opens -- and takes two
 kinds of update from it. The settings are applied by either check and shown on the account
 screen; the engine is downloaded only by the Home check.
@@ -35,8 +35,8 @@ screen; the engine is downloaded only by the Home check.
   open, so the server remains the final word. Note for later: once such a switch has been
   published as `1` and then back to `0`, the older signed manifest could be put back by hand;
   if that matters, give the engine a minimum serial in the same engine update.
-- **Data package manifest mirror**: while `datapack_manifest_url` points at the updates branch
-  (`.../updates/datapack-manifest.json`), `publish-update.py` copies the GeneralsOnline CDN manifest
+- **Data package manifest mirror**: while `datapack_manifest_url` points at the updates directory
+  (`.../custom-driver/updates/datapack-manifest.json`), `publish-update.py` copies the GeneralsOnline CDN manifest
   there with its fields trimmed -- the CDN's `sha256` starts with a space, and launchers up to 1.3.0
   compare it untrimmed, failing every install with "checksum mismatch". The script downloads the
   package and refuses to publish unless the trimmed digest and size match it. Newer launchers ignore
@@ -62,18 +62,16 @@ Nothing is used unless it is signed with the update key.
 
 ## Two channels: releases and test builds
 
-Releases read the `updates` branch. Test builds (packaged with `GX_UPDATE_CHANNEL=test`, which
-writes `assets/update_channel.txt`) read `updates-test` instead, so a test engine reaches testers
-over the air and is never offered to players. Each channel keeps its own serial on the device, and
-an engine downloaded from one channel does not run after an APK of the other channel is installed.
-Same key, same signature check.
+Releases read `updates/` on the `custom-driver` branch. Test builds (packaged with
+`GX_UPDATE_CHANNEL=test`, which writes `assets/update_channel.txt`) read `updates-test/` on the
+same branch instead, so a test engine reaches testers over the air and is never offered to
+players. Each channel keeps its own serial on the device, and an engine downloaded from one
+channel does not run after an APK of the other channel is installed. Same key, same signature
+check.
 
-```bash
-GX_UPDATE_CHANNEL=test ./scripts/build/android/build-dual-hz.sh        # the test APK testers install once
-python3 scripts/update/publish-update.py --channel test --apk <newer test APK> --out /tmp/updt
-scripts/update/push-updates-branch.sh /tmp/updt updates-test
-# then Actions -> Sign update -> branch: updates-test
-```
+This is this fork's layout. Upstream keeps a separate `updates` branch for each channel; this
+fork serves the manifest from `custom-driver` instead, like the language packs, so everything
+the launcher fetches comes from one branch.
 
 A test engine is published from a later test build than the one testers have (higher commit
 count) with the same libraries; `requires_libs` must match the test APK they installed.
@@ -98,35 +96,43 @@ not encrypted. Encryption would need the key inside the APK, where anyone can ta
 
 ## The key
 
-`update_signing_key.pem` is the private key. Keep it out of the repository. To sign in GitHub
-Actions, store its full text (including the `-----BEGIN/END EC PRIVATE KEY-----` lines) as the
-repository secret `UPDATE_SIGNING_KEY` (Settings → Secrets and variables → Actions → New
-repository secret). If the key is ever lost, a new one means a new APK with its public key.
+`unknuw-generalszh-update-signing-key.pem` is the fork's private key (ECDSA P-256, made
+23/11/2026). It replaces upstream's key: upstream's private key is not ours, so a manifest we
+publish could never verify against upstream's public key. Keep the private key out of the
+repository -- it lives only as a file outside the repo, and anyone holding it can publish an
+update every player trusts. Signings are done locally with it (see Publishing below); there is
+no Actions secret for it yet. If the key is ever lost or leaked, a new one means a new APK
+with its public key.
 
 ## Publishing
 
+The manifest and its signature are plain files on `custom-driver`, under `updates/` (releases)
+or `updates-test/` (test builds). To publish a new one: bump `serial`, write the manifest, sign
+it with the fork's key, and commit both files on `custom-driver`:
+
+```bash
+openssl dgst -sha256 -sign unknuw-generalszh-update-signing-key.pem \
+    -out /tmp/manifest.json.sig.bin updates/manifest.json
+base64 -w0 /tmp/manifest.json.sig.bin > updates/manifest.json.sig
+# then commit updates/manifest.json and updates/manifest.json.sig
+```
+
+The signature is over the exact bytes of `manifest.json`, so sign after the last edit and do
+not touch the file afterwards. Verify before committing -- a bad signature makes every device
+report a signature error:
+
+```bash
+openssl pkey -in unknuw-generalszh-update-signing-key.pem -pubout -out /tmp/upd-pub.pem
+openssl dgst -sha256 -verify /tmp/upd-pub.pem \
+    -signature /tmp/manifest.json.sig.bin updates/manifest.json
+```
+
 Settings only (after editing `update/config.json`). The engine already published is kept, files
-and all -- the branch is replaced whole, and without it a player who reinstalls the APK would run
-the APK's own engine again; `--drop-engine` withdraws it on purpose:
+and all -- without it a player who reinstalls the APK would run the APK's own engine again.
 
-```bash
-python3 scripts/update/publish-update.py --out /tmp/upd --key update_signing_key.pem
-scripts/update/push-updates-branch.sh /tmp/upd
-```
-
-With a new engine, from an APK built by `scripts/build/android/build-dual-hz.sh` on top of the
-same libraries players already have:
-
-```bash
-python3 scripts/update/publish-update.py --apk GeneralsXZH-android-local.apk \
-    --out /tmp/upd --key update_signing_key.pem --note "what changed"
-scripts/update/push-updates-branch.sh /tmp/upd
-```
-
-Without the key at hand, leave out `--key`, push, and run **Actions → Sign update → Run
-workflow**; it signs the manifest on the branch with the secret in a few seconds.
-
-The branch always holds a single commit, so old engines do not pile up in the history.
+Note: `scripts/update/publish-update.py`, `push-updates-branch.sh` and the Actions "Sign update"
+workflow still target upstream's separate `updates` / `updates-test` branches. Do not use them
+until they are updated for this layout; publish by hand as above.
 
 ### Monthly heroes (support card)
 
