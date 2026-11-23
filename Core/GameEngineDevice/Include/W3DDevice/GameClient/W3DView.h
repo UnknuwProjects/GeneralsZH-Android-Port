@@ -304,6 +304,13 @@ private:
 	Vector3 m_gxTerrainLastCameraPivot;
 	Bool m_gxTerrainHaveLastCamera;
 
+	// GeneralsX @bugfix Android port 23/11/2026 Which draw-size band the
+	// terrain is in, for the pitch hysteresis in updateTerrain(): the size
+	// flips at 37 degrees but the default camera pitch is 37.5, so a
+	// single threshold flip-flopped every frame. False is the normal
+	// size, true is the low-angle size.
+	Bool m_gxTerrainLowAngle;
+
 	Real getHeightAroundPos(Real x, Real y, Real terrainSampleSize = TERRAIN_SAMPLE_SIZE) const;
 	Real getCameraOffsetZ() const;
 	Real getDesiredHeight(Real x, Real y) const;

@@ -194,6 +194,7 @@ W3DView::W3DView()
 	m_cameraAreaConstraints.zero();
 	m_recalcCamera = false;
 	m_gxTerrainHaveLastCamera = false;
+	m_gxTerrainLowAngle = false;
 
 }
 
@@ -3980,7 +3981,36 @@ void W3DView::updateTerrain()
 	Int drawWidth;
 	Int drawHeight;
 
-	if (cameraPitch > ViewDefaultLowPitchRadians)
+	// GeneralsX @bugfix Android port 23/11/2026 The draw size used to flip
+	// on the single 37-degree pitch threshold, and the default camera pitch
+	// is 37.5 degrees, half a degree above it. The pitch wobbles by a hair
+	// every frame (camera settle and area-constraint clips nudge it), so a
+	// still camera flipped the size on every updateTerrain() call -- the
+	// 10411 device log shows sizeChg exactly equal to full (831 each), and
+	// every flip rebuilt the whole terrain (buffer reallocation, shroud
+	// reset, full cell rewrite) and left the 3D view black. A 2-degree dead
+	// band around the threshold stops that: drop to the low-angle size
+	// below 36 degrees, back to the normal size above 38. The wobble is
+	// well under a degree, so a still camera can never cross the band, and
+	// a real pitch change of a few degrees still switches promptly. The
+	// first update picks the band from the plain threshold, so a low start
+	// does not force a normal frame first.
+	Bool gxLowAngle;
+	if (!m_gxTerrainHaveLastCamera)
+	{
+		gxLowAngle = (cameraPitch <= ViewDefaultLowPitchRadians);
+	}
+	else if (m_gxTerrainLowAngle)
+	{
+		gxLowAngle = (cameraPitch <= DEG_TO_RADF(38.0f));
+	}
+	else
+	{
+		gxLowAngle = (cameraPitch < DEG_TO_RADF(36.0f));
+	}
+	m_gxTerrainLowAngle = gxLowAngle;
+
+	if (!gxLowAngle)
 	{
 		drawWidth = WorldHeightMap::NORMAL_DRAW_WIDTH;
 		drawHeight = WorldHeightMap::NORMAL_DRAW_HEIGHT;

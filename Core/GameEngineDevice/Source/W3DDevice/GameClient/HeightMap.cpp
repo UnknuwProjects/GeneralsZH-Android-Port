@@ -1344,6 +1344,42 @@ void HeightMapRenderObjClass::setTerrainDrawSize(Int width, Int height)
 	m_map->setDrawOrg(newOrgX,newOrgY);
 	m_originX = 0;
 	m_originY = 0;
+
+	// GeneralsX @bugfix Android port 23/11/2026 A routine size change
+	// used to run the full initHeightData rebuild every time: free and
+	// re-create every vertex buffer tile, reset the shroud, rewrite all
+	// cells with null lights. The tile grid is sized by the draw size
+	// and its row stride is baked into the tile and backup arrays, so a
+	// change that moves the grid genuinely needs the rebuild -- but when
+	// the new size fits the grid already allocated, nothing needs
+	// reallocating: record the new size, flag a full update, and let
+	// updateCenter() rewrite the window with the real lights. No shroud
+	// reset either; the shroud spans the whole map, not the draw size.
+	Int gxTilesX = 1;
+	for (Int i = VERTEX_BUFFER_TILE_LENGTH + 1; i < width;)
+	{
+		i += VERTEX_BUFFER_TILE_LENGTH;
+		++gxTilesX;
+	}
+	Int gxTilesY = 1;
+	for (Int j = VERTEX_BUFFER_TILE_LENGTH + 1; j < height;)
+	{
+		j += VERTEX_BUFFER_TILE_LENGTH;
+		++gxTilesY;
+	}
+	if (m_vertexBufferTiles != nullptr
+		&& m_stageOneTexture != nullptr
+		&& gxTilesX == m_numVBTilesX
+		&& gxTilesY == m_numVBTilesY)
+	{
+		m_x = width;
+		m_y = height;
+		m_numBlockColumnsInLastVB = (width - 1) % VERTEX_BUFFER_TILE_LENGTH;
+		m_numBlockRowsInLastVB = (height - 1) % VERTEX_BUFFER_TILE_LENGTH;
+		m_needFullUpdate = true;
+		return;
+	}
+
 	if (m_shroud)
 		m_shroud->reset();
 	//delete m_shroud;
@@ -1797,17 +1833,14 @@ void HeightMapRenderObjClass::updateCenter(CameraClass *camera, const Vector3 *c
 
 	BaseHeightMapRenderObjClass::updateCenter(camera, cameraPivot, pLightsIterator);
 
-	if (m_x >= m_map->getXExtent() && m_y >= m_map->getYExtent())
-  {
-		return; // no need to center.
-	}
-
+	// GeneralsX @diag author 23/11/2026 Sample the pitch before the
+	// early return below: when the draw window covers the whole map the
+	// function used to return here, so the [GX-PERF-GATE] pitch range
+	// stayed 0.0..0.0 and the branch counts stayed zero even while
+	// updateCenter() ran every frame. The draw size flips at 37 degrees,
+	// half a degree under the 37.5-degree default pitch, so this range is
+	// what shows whether the pitch is wobbling across the threshold.
 	const Real cameraPitch = asin(fabs(camera->Get_Forward_Dir().Z));
-
-	// GeneralsX @diag author 23/11/2026 Track the camera pitch for the
-	// [GX-PERF-GATE] window: the draw size flips at 37 degrees, half a
-	// degree under the 37.5-degree default pitch, so a pitch that wobbles
-	// across the threshold flip-flops the size and forces a full rewrite.
 	if (s_gxDiagCenterPitchSamples == 0)
 	{
 		s_gxDiagCenterMinPitchRad = cameraPitch;
@@ -1819,6 +1852,32 @@ void HeightMapRenderObjClass::updateCenter(CameraClass *camera, const Vector3 *c
 		if (cameraPitch > s_gxDiagCenterMaxPitchRad) s_gxDiagCenterMaxPitchRad = cameraPitch;
 	}
 	++s_gxDiagCenterPitchSamples;
+
+	if (m_x >= m_map->getXExtent() && m_y >= m_map->getYExtent())
+  {
+		// GeneralsX @bugfix Android port 23/11/2026 A full update was
+		// pending (usually a draw-size change), but this return used to
+		// skip the branch below that clears the flag, so the flag stayed
+		// set forever: every updateTerrain() call ran a full update, and
+		// W3DView::update() called updateTerrain() twice a frame. When
+		// the whole map is drawn there is nothing to center, but the
+		// pending rewrite still has to run once, with the real lights,
+		// and the flag has to clear -- otherwise a resize costs a full
+		// rewrite every frame instead of one.
+		if (m_needFullUpdate)
+		{
+			++s_gxDiagCenterFull;
+			m_needFullUpdate = false;
+			m_updating = true;
+			updateBlock(0, 0, m_x-1, m_y-1, m_map, pLightsIterator);
+			m_updating = false;
+		}
+		else
+		{
+			++s_gxDiagCenterNoop;
+		}
+		return; // no need to center.
+	}
 
 	Int newOrgX;
 	Int newOrgY;
