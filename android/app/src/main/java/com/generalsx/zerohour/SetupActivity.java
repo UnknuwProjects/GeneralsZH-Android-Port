@@ -430,6 +430,7 @@ public class SetupActivity extends Activity {
         LinearLayout page = UiKit.scrollingPage(contentHost);
         switch (tab) {
             case TAB_GRAPHICS:
+                checkCustomDriverRevert();
                 buildSimRateSection(page);
                 // GeneralsX @tweak Android port 02/10/2026 The upscaler lives in the GLES translator
                 // (plain GLES and GLES on ANGLE); under Vulkan it does nothing, so it is not offered.
@@ -437,13 +438,15 @@ public class SetupActivity extends Activity {
                     buildRenderScaleSection(page);
                 }
                 buildRenderBackendSection(page);
-                // Custom Vulkan driver / dxvk.conf only matter when Vulkan is
-                // the selected backend -- the GLES/GLES+ANGLE paths never
-                // touch DXVK at all, see
-                // Core/Libraries/Source/d3d8gles/CMakeLists.txt.
+                // GeneralsX @feature Android port 23/11/2026 The Driver Manager card is
+                // always visible now: a custom Vulkan driver is only picked up on the
+                // Vulkan backend, but the player needs to see the GPU, the installed
+                // driver and the catalogue even while on GLES, or the card is
+                // unreachable on a fresh install. The DXVK config card stays
+                // Vulkan-only -- the GLES/GLES+ANGLE paths never touch DXVK.
+                buildCustomDriverSection(page);
                 if (RENDER_BACKEND_VULKAN.equals(getRenderBackendChoice())) {
                     applyRecommendedDriverIfNeeded();
-                    buildCustomDriverSection(page);
                     buildDxvkConfigSection(page);
                 }
                 break;
@@ -2063,10 +2066,10 @@ public class SetupActivity extends Activity {
             return;
         }
         Toast.makeText(this, R.string.setup_toast_render_backend_saved, Toast.LENGTH_LONG).show();
-        // The Custom Vulkan Driver / DXVK Config cards are only relevant for
-        // the Vulkan backend -- rebuilding this one page shows/hides them
-        // immediately, without the full recreate() (and the jump back to
-        // Home) the old dialog needed.
+        // The DXVK Config card is only relevant for the Vulkan backend (the
+        // Driver Manager card is always visible now) -- rebuilding this one
+        // page shows/hides it immediately, without the full recreate() (and
+        // the jump back to Home) the old dialog needed.
         showTab(TAB_GRAPHICS);
     }
 
@@ -2099,10 +2102,26 @@ public class SetupActivity extends Activity {
 
     private TextView customDriverStatusView;
 
+    // GeneralsX @feature Android port 23/11/2026 Driver Manager: always visible (see
+    // showTab()), GPU line plus recommendation, installed-driver name/version from
+    // meta.json, per-GPU download catalogue, and the first-run offer. The card
+    // never switches the backend by itself -- a custom driver only takes effect
+    // once Vulkan is unlocked and selected (Vulkan renders black textures since
+    // the GLES work of 1.4.0, see isVulkanUnlocked()), and the help text says so.
     private void buildCustomDriverSection(LinearLayout root) {
         LinearLayout content = UiKit.card(root);
         UiKit.sectionHeader(content, R.drawable.ic_gzh_chip,
             getString(R.string.setup_card_vulkan_driver), false);
+
+        String gpu = detectGpuName();
+        if (!gpu.isEmpty()) {
+            String recommendation = GpuInfo.recommendation(gpu);
+            UiKit.supporting(content, getString(R.string.setup_driver_gpu,
+                gpu, recommendation != null ? recommendation : getString(R.string.setup_driver_gpu_system)));
+        }
+        if (DriverSafety.wasReverted(getFilesDir())) {
+            UiKit.supporting(content, getString(R.string.setup_driver_reverted));
+        }
 
         customDriverStatusView = UiKit.supporting(content, customDriverStatusText());
 
@@ -2111,7 +2130,126 @@ public class SetupActivity extends Activity {
         UiKit.button(content, UiKit.BTN_DANGER, R.drawable.ic_gzh_refresh,
             getString(R.string.setup_button_reset_driver), this::onClearCustomDriver);
 
+        // First-run offer: one line, one tap, never a silent auto-install.
+        if (!new File(getFilesDir(), CUSTOM_DRIVER_CFG_NAME).isFile()) {
+            String recommendation = gpu.isEmpty() ? null : GpuInfo.recommendation(gpu);
+            if (recommendation != null) {
+                for (DriverCatalog.Source source : DriverCatalog.forGpu(gpu)) {
+                    if (!source.label.contains(recommendation)) {
+                        continue;
+                    }
+                    UiKit.button(content, UiKit.BTN_TONAL, R.drawable.ic_gzh_download,
+                        getString(R.string.setup_button_download_driver, recommendation),
+                        () -> onDownloadDriver(source));
+                    break;
+                }
+            }
+        }
+
+        // Download catalogue: only sources built for this GPU are offered, so
+        // a Mali phone is never offered Turnip and an Adreno phone is never
+        // offered MaliSX2. PowerVR has no pack -- GLES stays its path.
+        if (!gpu.isEmpty()) {
+            for (DriverCatalog.Source source : DriverCatalog.forGpu(gpu)) {
+                UiKit.button(content, UiKit.BTN_OUTLINE, R.drawable.ic_gzh_download,
+                    getString(R.string.setup_button_download_source, source.label),
+                    () -> onDownloadDriver(source));
+            }
+        }
+
         UiKit.helpText(content, getString(R.string.setup_driver_help));
+    }
+
+    // GeneralsX @feature Android port 23/11/2026 Download one catalogue source on a
+    // background thread, verify its SHA-256 before installing, and change
+    // nothing on disk on failure. The releases API gives the newest .zip asset;
+    // a source with no pinned checksum is still checked by DriverDownload when
+    // the release publishes one (see DriverCatalog.Source.expectedSha256).
+    private void onDownloadDriver(DriverCatalog.Source source) {
+        new Thread(() -> {
+            String zipUrl = null;
+            try {
+                java.net.URL api = new java.net.URL(source.releasesApi);
+                java.net.HttpURLConnection connection =
+                    (java.net.HttpURLConnection) api.openConnection();
+                connection.setConnectTimeout(15000);
+                connection.setReadTimeout(30000);
+                connection.setRequestProperty("User-Agent", "GeneralsZH-Android");
+                if (connection.getResponseCode() == java.net.HttpURLConnection.HTTP_OK) {
+                    String body = readWholeStream(connection.getInputStream());
+                    zipUrl = firstZipAssetUrl(body);
+                }
+                connection.disconnect();
+            } catch (Exception ignored) {
+                // Reported below as a failed download; Setup stays usable.
+            }
+            final String url = zipUrl;
+            runOnUiThread(() -> {
+                if (url == null) {
+                    Toast.makeText(this, R.string.setup_toast_driver_download_failed, Toast.LENGTH_LONG).show();
+                    return;
+                }
+                new Thread(() -> {
+                    DriverDownload.Result result = DriverDownload.downloadAndInstall(
+                        getFilesDir(), url, source.expectedSha256);
+                    runOnUiThread(() -> {
+                        Toast.makeText(this, result.message, Toast.LENGTH_LONG).show();
+                        if (result.ok) {
+                            DriverSafety.clearRevertedNote(getFilesDir());
+                            refreshCustomDriverStatus();
+                            showTab(TAB_GRAPHICS);
+                        }
+                    });
+                }).start();
+            });
+        }).start();
+    }
+
+    private static String readWholeStream(java.io.InputStream in) throws java.io.IOException {
+        StringBuilder sb = new StringBuilder();
+        try (java.io.BufferedReader r = new java.io.BufferedReader(
+            new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8))) {
+            char[] buf = new char[4096];
+            int n;
+            while ((n = r.read(buf)) > 0) {
+                sb.append(buf, 0, n);
+            }
+        }
+        return sb.toString();
+    }
+
+    private static String firstZipAssetUrl(String releasesJson) {
+        int at = releasesJson.indexOf("\"browser_download_url\"");
+        while (at >= 0) {
+            int open = releasesJson.indexOf('"', at + 22);
+            int close = open < 0 ? -1 : releasesJson.indexOf('"', open + 1);
+            if (open >= 0 && close > open) {
+                String url = releasesJson.substring(open + 1, close);
+                if (url.endsWith(".zip")) {
+                    return url;
+                }
+            }
+            at = releasesJson.indexOf("\"browser_download_url\"", close < 0 ? at + 1 : close);
+        }
+        return null;
+    }
+
+    // GeneralsX @feature Android port 23/11/2026 Boot-failure revert: after two
+    // consecutive starts with a custom driver that never reached the main menu,
+    // drop the custom driver and force GLES if Vulkan was selected, then tell
+    // the player on the Graphics tab. The counter is written by the launcher
+    // (see launchGameNow()) and cleared when the main menu is reached.
+    private void checkCustomDriverRevert() {
+        if (!DriverSafety.shouldRevert(getFilesDir())) {
+            return;
+        }
+        new File(getFilesDir(), CUSTOM_DRIVER_CFG_NAME).delete();
+        new File(getFilesDir(), CUSTOM_DRIVER_AUTO_MARKER_NAME).delete();
+        deleteRecursive(new File(getFilesDir(), CUSTOM_DRIVER_DIR_NAME));
+        DriverSafety.markReverted(getFilesDir());
+        if (RENDER_BACKEND_VULKAN.equals(getRenderBackendChoice())) {
+            writeRenderBackend(RENDER_BACKEND_GLES);
+        }
     }
 
     private String customDriverStatusText() {
@@ -2119,9 +2257,14 @@ public class SetupActivity extends Activity {
         if (!cfg.isFile()) {
             return getString(R.string.setup_driver_status_none);
         }
-        String driverName = readFirstLine(cfg);
+        CustomDriverMeta meta = CustomDriverMeta.fromDirectory(
+            new File(getFilesDir(), CUSTOM_DRIVER_DIR_NAME));
         boolean isAuto = new File(getFilesDir(), CUSTOM_DRIVER_AUTO_MARKER_NAME).isFile();
-        String name = driverName != null ? driverName : getString(R.string.setup_driver_unknown);
+        String name = meta.displayName();
+        if (name.isEmpty() || name.equals(CUSTOM_DRIVER_DIR_NAME)) {
+            String driverName = readFirstLine(cfg);
+            name = driverName != null ? driverName : getString(R.string.setup_driver_unknown);
+        }
         return getString(isAuto ? R.string.setup_driver_status_auto : R.string.setup_driver_status_manual, name);
     }
 
@@ -2139,6 +2282,13 @@ public class SetupActivity extends Activity {
             }
             if (deviceReportsVulkan13()) {
                 return;  // stock driver already handles what DXVK needs
+            }
+            // GeneralsX @bugfix Android port 23/11/2026 The version-only gate above
+            // had no GPU-family check: on a non-Adreno phone below Vulkan 1.3 it
+            // copied Turnip and then failed at load. Turnip is Adreno-only, so
+            // gate the copy on the detected GPU family first.
+            if (GpuInfo.familyOf(detectGpuName()) != GpuInfo.Family.ADRENO) {
+                return;
             }
             File destDir = new File(getFilesDir(), CUSTOM_DRIVER_DIR_NAME);
             deleteRecursive(destDir);
@@ -2258,17 +2408,19 @@ public class SetupActivity extends Activity {
         }
     }
 
+    // GeneralsX @bugfix Android port 23/11/2026 Reset returns to the stock driver.
+    // It used to re-run applyRecommendedDriverIfNeeded(), so on a Vulkan <1.3
+    // Adreno "Reset" silently re-applied the bundled Turnip instead of going
+    // back to stock. The bundled driver is offered again only through the
+    // first-run offer in buildCustomDriverSection(), never silently on Reset.
     private void onClearCustomDriver() {
         new File(getFilesDir(), CUSTOM_DRIVER_CFG_NAME).delete();
         new File(getFilesDir(), CUSTOM_DRIVER_AUTO_MARKER_NAME).delete();
         deleteRecursive(new File(getFilesDir(), CUSTOM_DRIVER_DIR_NAME));
-        applyRecommendedDriverIfNeeded();
+        DriverSafety.noteReachedMainMenu(getFilesDir());
+        DriverSafety.clearRevertedNote(getFilesDir());
         refreshCustomDriverStatus();
-        boolean autoApplied = new File(getFilesDir(), CUSTOM_DRIVER_AUTO_MARKER_NAME).isFile();
-        Toast.makeText(this, autoApplied
-            ? R.string.setup_toast_reset_auto
-            : R.string.setup_toast_reset_stock,
-            Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, R.string.setup_toast_reset_stock, Toast.LENGTH_SHORT).show();
     }
 
     // customDriverDir passed to adrenotools_open_libvulkan() MUST NOT be on
@@ -4501,6 +4653,14 @@ public class SetupActivity extends Activity {
     }
 
     private void launchGameNow() {
+        // GeneralsX @feature Android port 23/11/2026 Boot-failure counter for the
+        // custom driver (see DriverSafety): count this start only when a custom
+        // driver is configured. The counter is cleared when the main menu is
+        // reached; after two starts that never get there, Setup reverts to the
+        // stock driver on the next launch (see checkCustomDriverRevert()).
+        if (new File(getFilesDir(), CUSTOM_DRIVER_CFG_NAME).isFile()) {
+            DriverSafety.noteBootStarted(getFilesDir());
+        }
         // GeneralsX @feature Android port 04/10/2026 The text-language marker is checked against
         // the data of the game about to start, which may not be the one it was last written for.
         applyGameLanguageOverride();

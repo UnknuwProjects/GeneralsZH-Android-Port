@@ -440,10 +440,17 @@ static void TryLoadCustomVulkanDriver(const char *internalPath)
 		const char *dlErr = dlerror();
 		fprintf(stderr, "WARNING: adrenotools_open_libvulkan('%s') failed -- falling back to stock Vulkan driver (dlerror: %s)\n",
 		        driverName, dlErr ? dlErr : "(none)");
+		// GeneralsX @feature Android port 23/11/2026 Requested vs opened, in one
+		// line, so a silent fallback is visible in generals-stderr.log instead
+		// of Setup claiming the custom driver is running when it is not.
+		fprintf(stderr, "[gxdriver] requested='%s' opened=system required=false failure=%s\n",
+		        driverName, dlErr ? dlErr : "(none)");
 		return;
 	}
 	fprintf(stderr, "INFO: Loaded custom Vulkan driver '%s' via libadrenotools (hookLibDir=%s)\n",
 	        driverName, hookLibDir.c_str());
+	fprintf(stderr, "[gxdriver] requested='%s' opened='%s' required=false\n",
+	        driverName, driverName);
 }
 #endif // __ANDROID__
 

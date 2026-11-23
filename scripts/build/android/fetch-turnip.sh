@@ -10,13 +10,19 @@
 #
 # Pinned release: same build validated in the wild by the fadi-labib/
 # Generals-Android community port (v25.3.0-rc.11, targets Adreno 6xx/7xx).
-# No checksum pin here (network access to release assets wasn't available
-# when this script was written) -- validated by content instead: must unzip
-# to an AArch64 .so plus a meta.json naming it.
+# The SHA-256 pin (TURNIP_SHA256 below) is still TODO -- until it is filled
+# in, the zip is validated by content instead: must unzip to an AArch64 .so
+# plus a meta.json naming it.
 set -euo pipefail
 
 TURNIP_VERSION="v25.3.0-rc.11"
 TURNIP_URL="https://github.com/K11MCH1/AdrenoToolsDrivers/releases/download/${TURNIP_VERSION}/Turnip_v25.3.0_R11.zip"
+# GeneralsX @feature Android port 23/11/2026 SHA-256 pin for the bundled Turnip
+# zip. Fill this in from the K11MCH1 release page, verified by downloading the
+# zip once and running sha256sum on it -- do not copy a checksum from memory.
+# Until it is filled in the script keeps the content checks below and warns,
+# instead of refusing a build that has no other way to stage the driver.
+TURNIP_SHA256="TODO"
 DEST="${GX_DEFAULT_DRIVER:-${HOME}/GeneralsX/android-staging/default_driver}"
 TMP="$(mktemp -d)"
 trap 'rm -rf "${TMP}"' EXIT
@@ -28,6 +34,15 @@ fi
 
 echo "==> Downloading Turnip ${TURNIP_VERSION}"
 curl -fL -o "${TMP}/turnip.zip" "${TURNIP_URL}"
+if [[ -n "${TURNIP_SHA256}" && "${TURNIP_SHA256}" != "TODO" ]]; then
+    ACTUAL_SHA256="$(sha256sum "${TMP}/turnip.zip" | awk '{print $1}')"
+    if [[ "${ACTUAL_SHA256}" != "${TURNIP_SHA256}" ]]; then
+        echo "ERROR: Turnip zip checksum mismatch (expected ${TURNIP_SHA256}, got ${ACTUAL_SHA256})"
+        exit 1
+    fi
+else
+    echo "WARNING: TURNIP_SHA256 is not pinned yet -- relying on the content checks below"
+fi
 unzip -q "${TMP}/turnip.zip" -d "${TMP}/extracted"
 
 META_FILE="$(find "${TMP}/extracted" -name meta.json | head -1)"

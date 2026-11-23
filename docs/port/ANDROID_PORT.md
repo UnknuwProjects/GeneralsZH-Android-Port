@@ -95,6 +95,23 @@ system Vulkan loader.
 > patches, distorted geometry and corrupted menus that nothing above the
 > driver can fix. Setup's Render Backend card shows the GPU's own name, since
 > every such report has been a driver family rather than a device model.
+>
+> In 1.4.2 Vulkan is hidden behind the experimental switch in Tools ->
+> Diagnostics ("Experimental Vulkan renderer"): it renders black textures
+> since the GLES work of 1.4.0, and the root cause is not fixed yet. The
+> Driver Manager card in Setup is always visible anyway, so the player can
+> see the GPU, the installed driver and the catalogue even while on GLES --
+> but a custom Vulkan driver only takes effect once Vulkan is unlocked and
+> selected. The manager offers one driver per GPU family (Turnip for Adreno
+> 6xx/7xx, StevenMXZ Gen8 for Adreno 8xx, MaliSX2 for supported Mali GPUs,
+> MdiEx for Xclipse, no pack for PowerVR), downloads it in-app with a
+> SHA-256 check, shows its name and version from `meta.json`, and reverts
+> to the stock driver after two starts that never reach the main menu.
+> Two pieces are still open: the Turnip SHA-256 pin in
+> `scripts/build/android/fetch-turnip.sh` is TODO, and the clear of the
+> boot-failure counter when the main menu is reached is not hooked up yet
+> (its location was not pinned down), so a revert is checked on the next
+> Setup launch, not from the engine.
 
 DXVK's own minimum was originally Vulkan 1.3 with a handful of features
 (robustness2, null descriptors, etc.), which is still the *best-supported*
