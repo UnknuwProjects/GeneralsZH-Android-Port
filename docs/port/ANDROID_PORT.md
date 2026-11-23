@@ -119,6 +119,31 @@ system Vulkan loader.
 > unless the player already picked an upscaler mode, because on Mali the GPU
 > sets the frame time in heavy battles and its work scales with the pixel
 > count. The interface stays at full resolution.
+>
+> The 60 Hz simulation rate doubles the simulation work per second, and on
+> a CPU-bound Mali phone the game itself runs slow if the phone cannot keep
+> up (9 drawn frames a second against 60 needed is 15% of real-time speed,
+> against 28/30 = 93% at 30 Hz). Setup shows a warning on the Simulation
+> Rate card when 60 Hz is selected on Mali, with a one-tap way back to
+> 30 Hz; it never resets the player's choice silently. The Game Speed
+> slider in skirmish also matters: it counts in retail 30 Hz logic frames
+> and is doubled on the 60 Hz engine, so a slider at 20 reads as a 40
+> frame limit and the game runs at two thirds of normal speed even before
+> any frame-rate problem.
+>
+> The driver catalogue lists the same open-source sources ARMSX2 ships,
+> per GPU family, each credited under its download button with its author
+> and repo: MaliSX2 (bmdhacks), Turnip (bmdhacks / ARMSX2), AdrenoTools-
+> Drivers (K11MCH1), StevenMXZ Adreno-Tools (GPL-3.0), purple-turnip
+> (MrPurple666), GameHub 8Elite (crueter, stale since Oct 2025, fallback
+> only), freedreno-builder (PojavLauncherTeam, GPL-3.0, archived Jan 2025,
+> fallback only), ExynosTools (WearyConcern1165), MdiEx (avavo, MIT),
+> Banners-Turnip (The412Banner, GPL-3.0), Droid-Deck Turnip (Droid-Deck,
+> GPL-3.0). PowerVR has no pack anywhere (Mesa's PowerVR driver is
+> Linux-only) and Mali has one pack only (MaliSX2). Asset picking is per
+> source: Banners offers its Banners-AIO pack (never the Linux/Wayland
+> variants) and K11MCH1 only its Turnip assets, never the extracted
+> Qualcomm stock pack its newest release ships.
 
 DXVK's own minimum was originally Vulkan 1.3 with a handful of features
 (robustness2, null descriptors, etc.), which is still the *best-supported*

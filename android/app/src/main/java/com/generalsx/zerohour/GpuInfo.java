@@ -19,9 +19,9 @@ public final class GpuInfo {
     private static final Pattern ADRENO_MODEL =
             Pattern.compile("Adreno\\D*([0-9]{3})");
     // Mali models served by MaliSX2: G31, G51, G52, G57, G68, G76,
-    // G77, G78, G310, G510, G610, G615, G710, G715 and Immortalis.
+    // G77, G78, G310, G510, G610, G615, G620, G710, G715, G720 and Immortalis.
     private static final Pattern MALI_MODEL =
-            Pattern.compile("\\bG(?:31|51|52|57|68|76|77|78|310|510|610|615|710|715)(?!\\d)");
+            Pattern.compile("\\bG(?:31|51|52|57|68|76|77|78|310|510|610|615|620|710|715|720)(?!\\d)");
 
     private GpuInfo() {}
 

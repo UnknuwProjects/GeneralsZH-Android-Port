@@ -180,6 +180,17 @@ public final class DriverDownload {
         if (files == null) {
             return null;
         }
+        // Prefer an android/ subfolder first: some packs (Droid-Deck)
+        // ship android/ and linux/ side by side, each with its own
+        // meta.json, and the Linux driver must never be installed.
+        for (File file : files) {
+            if (file.isDirectory() && file.getName().equals("android")) {
+                File found = findMetaDir(file);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
         for (File file : files) {
             if (file.isFile() && file.getName().equals("meta.json")) {
                 return dir;
@@ -198,6 +209,14 @@ public final class DriverDownload {
         File[] files = dir.listFiles();
         if (files == null) {
             return null;
+        }
+        for (File file : files) {
+            if (file.isDirectory() && file.getName().equals("android")) {
+                File found = findDriverSo(file);
+                if (found != null) {
+                    return found;
+                }
+            }
         }
         for (File file : files) {
             if (file.isFile() && file.getName().startsWith("libvulkan") && file.getName().endsWith(".so")) {

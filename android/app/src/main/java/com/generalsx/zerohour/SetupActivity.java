@@ -2021,7 +2021,25 @@ public class SetupActivity extends Activity {
                 ? R.string.setup_sim_rate_60_short
                 : R.string.setup_sim_rate_30_short));
             Toast.makeText(this, R.string.setup_toast_sim_rate_saved, Toast.LENGTH_LONG).show();
+            showTab(TAB_GRAPHICS);
         });
+
+        // GeneralsX @feature Android port 23/11/2026 Mali phones are CPU-bound:
+        // 60 Hz runs the simulation twice as often per second, so a Mali phone
+        // that cannot keep up does not just lose frames -- the game itself runs
+        // slow (9 drawn frames a second against 60 needed is 15% of real-time
+        // speed). The player's choice is never reset silently; this is a
+        // warning plus a one-tap way back to 30 Hz.
+        if (current == SIM_HZ_CROSSPLAY
+                && GpuInfo.familyOf(detectGpuName()) == GpuInfo.Family.MALI) {
+            UiKit.supporting(content, getString(R.string.setup_sim_rate_mali_60_warning));
+            UiKit.button(content, UiKit.BTN_TONAL, R.drawable.ic_gzh_chip,
+                getString(R.string.setup_button_sim_rate_30_mali), () -> {
+                    setSimHz(this, SIM_HZ_RETAIL);
+                    Toast.makeText(this, R.string.setup_toast_sim_rate_saved, Toast.LENGTH_LONG).show();
+                    showTab(TAB_GRAPHICS);
+                });
+        }
 
         UiKit.supporting(content, getString(current == SIM_HZ_CROSSPLAY
             ? (isGeneralsSelected(this) ? R.string.setup_sim_rate_60_desc_generals : R.string.setup_sim_rate_60_desc)
@@ -2164,6 +2182,9 @@ public class SetupActivity extends Activity {
                     UiKit.button(content, UiKit.BTN_TONAL, R.drawable.ic_gzh_download,
                         getString(R.string.setup_button_download_driver, recommendation),
                         () -> onDownloadDriver(source));
+                    if (!source.credit.isEmpty()) {
+                        UiKit.supporting(content, source.credit);
+                    }
                     break;
                 }
             }
@@ -2180,6 +2201,9 @@ public class SetupActivity extends Activity {
                 UiKit.button(content, UiKit.BTN_OUTLINE, R.drawable.ic_gzh_download,
                     getString(R.string.setup_button_download_source, source.label),
                     () -> onDownloadDriver(source));
+                if (!source.credit.isEmpty()) {
+                    UiKit.supporting(content, source.credit);
+                }
             }
         }
 
@@ -2203,7 +2227,7 @@ public class SetupActivity extends Activity {
                 connection.setRequestProperty("User-Agent", "GeneralsZH-Android");
                 if (connection.getResponseCode() == java.net.HttpURLConnection.HTTP_OK) {
                     String body = readWholeStream(connection.getInputStream());
-                    zipUrl = firstZipAssetUrl(body);
+                    zipUrl = firstZipAssetUrl(body, source);
                 }
                 connection.disconnect();
             } catch (Exception ignored) {
@@ -2244,20 +2268,44 @@ public class SetupActivity extends Activity {
         return sb.toString();
     }
 
-    private static String firstZipAssetUrl(String releasesJson) {
+    private static String firstZipAssetUrl(String releasesJson, DriverCatalog.Source source) {
         int at = releasesJson.indexOf("\"browser_download_url\"");
         while (at >= 0) {
             int open = releasesJson.indexOf('"', at + 22);
             int close = open < 0 ? -1 : releasesJson.indexOf('"', open + 1);
             if (open >= 0 && close > open) {
                 String url = releasesJson.substring(open + 1, close);
-                if (url.endsWith(".zip")) {
+                if (matchesAssetFilter(url, source)) {
                     return url;
                 }
             }
             at = releasesJson.indexOf("\"browser_download_url\"", close < 0 ? at + 1 : close);
         }
         return null;
+    }
+
+    // GeneralsX @feature Android port 23/11/2026 Asset picking per source:
+    // a release can ship many .zip assets and the first one is not always
+    // the Android pack (Banners ships Linux/Wayland variants; K11MCH1's
+    // newest release is an extracted Qualcomm stock pack, not Turnip).
+    private static boolean matchesAssetFilter(String url, DriverCatalog.Source source) {
+        if (!url.endsWith(".zip")) {
+            return false;
+        }
+        String name = url.substring(url.lastIndexOf('/') + 1).toLowerCase(java.util.Locale.US);
+        if (!source.assetMustContain.isEmpty()
+                && !name.contains(source.assetMustContain.toLowerCase(java.util.Locale.US))) {
+            return false;
+        }
+        if (!source.assetMustNotContain.isEmpty()) {
+            for (String banned : source.assetMustNotContain.split(",")) {
+                if (!banned.trim().isEmpty()
+                        && name.contains(banned.trim().toLowerCase(java.util.Locale.US))) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     // GeneralsX @feature Android port 23/11/2026 Boot-failure revert: after two
