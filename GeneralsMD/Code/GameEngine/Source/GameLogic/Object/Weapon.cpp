@@ -1236,7 +1236,29 @@ UnsignedInt WeaponTemplate::fireWeaponTemplate
 			}
 		}
 
-		firingWeapon->newProjectileFired( sourceObj, projectile, victimObj, victimPos );//The actual logic weapon needs to know this was created.
+		// GeneralsX @bugfix Android port 23/11/2026 Creating the projectile
+		// above can delete the Weapon that is firing right now: its
+		// onCreate may grant a player upgrade, and Player::addUpgrade
+		// runs updateUpgradeModules on every object of that player, so a
+		// WeaponSetUpgrade on the firer sets WEAPONSET_PLAYER_UPGRADE and
+		// rebuilds the weapon set, deleting this Weapon and building a
+		// fresh one. The pointer we were handed is then a freed heap
+		// block -- Weapons here come from the plain heap (the shipped
+		// binary allocates them with malloc, not a pool), so the block
+		// can be reused by any object -- and using it here reads whatever
+		// reused it. That is the 0x17 wild m_template behind the DF-41
+		// crash in builds 10413 and 10414. Re-fetch the weapon now in
+		// the slot: if the set was rebuilt this is the new weapon,
+		// otherwise it is the same one, so nothing changes. If the slot
+		// is empty now, there is no stream to record.
+		if (firingWeapon != nullptr)
+		{
+			Weapon *curWeapon = sourceObj->getWeaponInWeaponSlot(wslot);
+			if (curWeapon != nullptr)
+				firingWeapon = curWeapon;
+		}
+		if (firingWeapon != nullptr)
+			firingWeapon->newProjectileFired( sourceObj, projectile, victimObj, victimPos );//The actual logic weapon needs to know this was created.
 
 		ProjectileUpdateInterface* pui = nullptr;
 		for (BehaviorModule** u = projectile->getBehaviorModules(); *u; ++u)

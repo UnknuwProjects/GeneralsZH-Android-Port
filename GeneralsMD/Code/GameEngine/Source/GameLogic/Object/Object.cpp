@@ -1550,10 +1550,17 @@ void Object::fireCurrentWeapon(Object *target)
 	Weapon* weapon = m_weaponSet.getCurWeapon();
 	if (weapon && (weapon->getStatus() == READY_TO_FIRE))
 	{
+		// GeneralsX @bugfix Android port 23/11/2026 Remember the slot
+		// before firing: the shot can rebuild the weapon set (see
+		// WeaponTemplate::fireWeaponTemplate), which deletes this Weapon,
+		// so the tracker below must use the weapon now in the slot, not
+		// the possibly freed pointer.
+		WeaponSlotType wslot = m_weaponSet.getCurWeaponSlot();
 		Bool reloaded = weapon->fireWeapon(this, target);
 		DEBUG_ASSERTCRASH(m_firingTracker, ("hey, we are firing but have no firing tracker. this is wrong."));
-		if (m_firingTracker)
-			m_firingTracker->shotFired(weapon, target->getID());
+		Weapon* curWeapon = m_weaponSet.getWeaponInWeaponSlot(wslot);
+		if (m_firingTracker && curWeapon != nullptr)
+			m_firingTracker->shotFired(curWeapon, target->getID());
 		if (reloaded)
 			releaseWeaponLock(LOCKED_TEMPORARILY);	// release any temporary locks.
 
@@ -1572,10 +1579,17 @@ void Object::fireCurrentWeapon(const Coord3D* pos)
 	Weapon* weapon = m_weaponSet.getCurWeapon();
 	if (weapon && (weapon->getStatus() == READY_TO_FIRE))
 	{
+		// GeneralsX @bugfix Android port 23/11/2026 Remember the slot
+		// before firing: the shot can rebuild the weapon set (see
+		// WeaponTemplate::fireWeaponTemplate), which deletes this Weapon,
+		// so the tracker below must use the weapon now in the slot, not
+		// the possibly freed pointer.
+		WeaponSlotType wslot = m_weaponSet.getCurWeaponSlot();
 		Bool reloaded = weapon->fireWeapon(this, pos);
 		DEBUG_ASSERTCRASH(m_firingTracker, ("hey, we are firing but have no firing tracker. this is wrong."));
-		if (m_firingTracker)
-			m_firingTracker->shotFired(weapon, INVALID_ID);
+		Weapon* curWeapon = m_weaponSet.getWeaponInWeaponSlot(wslot);
+		if (m_firingTracker && curWeapon != nullptr)
+			m_firingTracker->shotFired(curWeapon, INVALID_ID);
 		if (reloaded)
 			releaseWeaponLock(LOCKED_TEMPORARILY);	// release any temporary locks.
 
