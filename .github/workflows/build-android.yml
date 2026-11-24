@@ -369,10 +369,10 @@ jobs:
           TOOLS="$(dirname "$(ls "${ANDROID_NDK_HOME}"/toolchains/llvm/prebuilt/*/bin/llvm-nm | head -1)")"
           LIB="build/${{ env.PRESET }}/GeneralsMD/Code/Main/libmain.so"
           mkdir -p symbols
-          OUT="symbols/libmain-run${{ github.run_number }}.symbols.txt"
+          OUT="symbols/libmain-v${{ inputs.version_name }}.symbols.txt"
           BUILD_ID="$(readelf -n "$LIB" 2>/dev/null | sed -n 's/.*Build ID: \([0-9a-f]*\).*/\1/p' | head -1)"
           {
-            echo "# libmain.so symbols -- run ${{ github.run_number }}, commit ${{ github.sha }}"
+            echo "# libmain.so symbols -- version ${{ inputs.version_name }}, commit ${{ github.sha }}"
             echo "# Match this BuildID against the tombstone's before trusting any address."
             # llvm-readelf --notes prints the note's header but not the build-id
             # value itself, so pull it out with GNU readelf, which does.
@@ -534,7 +534,7 @@ jobs:
       - name: Upload symbol table artifact
         uses: actions/upload-artifact@v7
         with:
-          name: android-symbols-run${{ github.run_number }}
+          name: android-symbols-v${{ inputs.version_name }}
           path: symbols/
           # GeneralsX @bugfix Android CI 19/09/2026 was 7, copied from the APK
           # above -- but the quota argument there does not apply here: an APK is
@@ -617,7 +617,7 @@ jobs:
           body_path: release-notes.md
           files: |
             ${{ steps.locate.outputs.path }}
-            symbols/libmain-run${{ github.run_number }}.symbols.txt.gz
+            symbols/libmain-v${{ inputs.version_name }}.symbols.txt.gz
           generate_release_notes: true
           make_latest: true
 
@@ -633,12 +633,12 @@ jobs:
         run: |
           set -euo pipefail
           KEEP_APK="${{ steps.locate.outputs.path }}"
-          KEEP_SYM="libmain-run${{ github.run_number }}.symbols.txt.gz"
+          KEEP_SYM="libmain-v${{ inputs.version_name }}.symbols.txt.gz"
           gh api "repos/${{ github.repository }}/releases/tags/v${{ inputs.version_name }}" \
             --jq '.assets[] | [.id, .name] | @tsv' \
           | while IFS=$'\t' read -r asset_id asset_name; do
               case "${asset_name}" in
-                GeneralZH.v*.apk|GeneralsXZH-android-run*.apk|libmain-run*.symbols.txt.gz)
+                GeneralZH.v*.apk|GeneralsXZH-android-run*.apk|libmain-v*.symbols.txt.gz|libmain-run*.symbols.txt.gz)
                   if [ "${asset_name}" != "${KEEP_APK}" ] && [ "${asset_name}" != "${KEEP_SYM}" ]; then
                     echo "Deleting superseded release asset ${asset_name}"
                     gh api -X DELETE "repos/${{ github.repository }}/releases/assets/${asset_id}" || true
