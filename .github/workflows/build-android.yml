@@ -434,7 +434,7 @@ jobs:
           echo "version_name=${{ inputs.version_name || '' }}" >> "$GITHUB_OUTPUT"
           echo "apk_name=GeneralZH.v${{ inputs.version_name }}.apk" >> "$GITHUB_OUTPUT"
 
-            - name: Decode release keystore
+      - name: Decode release keystore
         run: |
           # GeneralsX @build Android port 23/11/2026 The release keystore
           # lives in the ANDROID_KEYSTORE_BASE64 secret, never in the repo.
@@ -457,7 +457,7 @@ jobs:
           # same release key signs every CI build, which is what makes
           # consecutive builds installable as updates over each other rather
           # than requiring an uninstall, PROVIDED versionCode was bumped by
-          # by hand (in build.gradle or via a manual-dispatch override) since
+          # hand (in build.gradle or via a manual-dispatch override) since
           # the last build the user actually installed.
           # GX_ANDROID_VARIANT=release is what switches the packaging script
           # from assembleDebug to assembleRelease; the keystore itself comes
@@ -561,7 +561,7 @@ jobs:
             exit 1
           fi
 
-                  # GeneralsX @build Android port 23/11/2026 Release notes come from the
+            # GeneralsX @build Android port 23/11/2026 Release notes come from the
       # commits since the previous release tag, so What's New lists what
       # actually changed instead of a hand-typed summary that can go stale
       # or miss a fix. The manual release_notes input, when given, goes on
