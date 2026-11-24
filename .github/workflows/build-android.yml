@@ -114,7 +114,7 @@ jobs:
           echo "DXVK_REF=$(git rev-parse HEAD:references/fbraz3-dxvk)" >> "$GITHUB_ENV"
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '17'
@@ -167,7 +167,7 @@ jobs:
       # requested distribution and puts a `gradle` command on PATH — exactly
       # what scripts/build/android/package-android-zh.sh looks for.
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v5
         with:
           gradle-version: ${{ env.GRADLE_VERSION }}
 
@@ -432,27 +432,47 @@ jobs:
           # Gradle falls back to whatever is committed in build.gradle.
           echo "version_code=${{ inputs.version_code || '' }}" >> "$GITHUB_OUTPUT"
           echo "version_name=${{ inputs.version_name || '' }}" >> "$GITHUB_OUTPUT"
-          echo "apk_name=GeneralsXZH-android-run${{ github.run_number }}.apk" >> "$GITHUB_OUTPUT"
+          echo "apk_name=GeneralZH.v${{ inputs.version_name }}.apk" >> "$GITHUB_OUTPUT"
+
+            - name: Decode release keystore
+        run: |
+          # GeneralsX @build Android port 23/11/2026 The release keystore
+          # lives in the ANDROID_KEYSTORE_BASE64 secret, never in the repo.
+          # Decode it for this run only and hand Gradle the four values it
+          # reads (see signingConfigs.release in android/app/build.gradle).
+          # Skipped when the secret is empty, so a fork without it still
+          # builds - Gradle then falls back to the debug key.
+          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "${{ runner.temp }}/unknuw-release.keystore"
+            echo "ANDROID_KEYSTORE_FILE=${{ runner.temp }}/unknuw-release.keystore" >> "$GITHUB_ENV"
+            echo "ANDROID_KEYSTORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" >> "$GITHUB_ENV"
+            echo "ANDROID_KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}" >> "$GITHUB_ENV"
+            echo "ANDROID_KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}" >> "$GITHUB_ENV"
+          fi
 
       - name: Package APK
         env:
           # scripts/build/android/package-android-zh.sh uses these to stage
-          # jniLibs/, the SDL3 Java glue, and fonts, then invokes Gradle. Same
-          # fixed debug.keystore every run (committed in android/app/) is what
-          # makes consecutive CI builds installable as updates over each other
-          # rather than requiring an uninstall, PROVIDED versionCode was bumped
+          # jniLibs/, the SDL3 Java glue, and fonts, then invokes Gradle. The
+          # same release key signs every CI build, which is what makes
+          # consecutive builds installable as updates over each other rather
+          # than requiring an uninstall, PROVIDED versionCode was bumped by
           # by hand (in build.gradle or via a manual-dispatch override) since
           # the last build the user actually installed.
+          # GX_ANDROID_VARIANT=release is what switches the packaging script
+          # from assembleDebug to assembleRelease; the keystore itself comes
+          # from the Decode release keystore step above.
+          GX_ANDROID_VARIANT: release
           GX_ANDROID_STAGING: ${{ github.workspace }}/android-staging
           GX_ANDROID_VERSION_CODE: ${{ steps.artifact.outputs.version_code }}
-          GX_ANDROID_VERSION_NAME: ${{ steps.artifact.outputs.version_name }}
+          GX_ANDROID_VERSION_NAME: ${{ steps.artifact.outputs.version_name }}          
         run: |
           ./scripts/build/android/package-android-zh.sh
 
       - name: Locate APK
         id: locate
         run: |
-          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          APK="android/app/build/outputs/apk/release/app-release.apk"
           if [ ! -f "$APK" ]; then echo "::error::APK not found at $APK"; exit 1; fi
           cp "$APK" "${{ steps.artifact.outputs.apk_name }}"
           echo "path=${{ steps.artifact.outputs.apk_name }}" >> "$GITHUB_OUTPUT"
@@ -541,18 +561,91 @@ jobs:
             exit 1
           fi
 
+                  # GeneralsX @build Android port 23/11/2026 Release notes come from the
+      # commits since the previous release tag, so What's New lists what
+      # actually changed instead of a hand-typed summary that can go stale
+      # or miss a fix. The manual release_notes input, when given, goes on
+      # top as the intro. A hotfix re-run of the same version regenerates
+      # the same range, so the fix commit shows up in the updated notes.
+      - name: Build release notes from commits
+        id: notes
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.create_release }}
+        env:
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+        run: |
+          set -euo pipefail
+          VERSION="v${{ inputs.version_name }}"
+          git fetch --tags origin
+          PREV="$(git tag --merged HEAD --sort=-v:refname | grep -Fvx "${VERSION}" | head -1 || true)"
+          {
+            echo "What's new in ${VERSION} — vs ${PREV:-the first release}"
+            echo ""
+            if [ -n "${RELEASE_NOTES}" ]; then
+              printf '%s\n\n' "${RELEASE_NOTES}"
+            fi
+            echo "Changes"
+            if [ -n "${PREV}" ]; then
+              git log "${PREV}..HEAD" --pretty=format:'- %s (%h)'
+            else
+              git log --pretty=format:'- %s (%h)' -30
+            fi
+            echo ""
+          } > release-notes.md
+          echo "Previous tag: ${PREV:-none}"
+          cat release-notes.md
+
+            # GeneralsX @build Android port 23/11/2026 The release tag must point
+      # at the commit that was actually built. action-gh-release creates the
+      # tag on the repo's default branch when it does not exist yet, so the
+      # v1.0.0 tag landed on main's old head instead of this build's commit.
+      # Point it here first (and again on a hotfix re-run of the same
+      # version), so the tag always means "the code in this release".
+      - name: Move release tag to this commit
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.create_release }}
+        run: |
+          set -euo pipefail
+          git tag -f "v${{ inputs.version_name }}" "${{ github.sha }}"
+          git push -f origin "v${{ inputs.version_name }}"
+
       - name: Publish GitHub Release
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.create_release }}
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ inputs.version_name }}
           name: v${{ inputs.version_name }}
-          body: ${{ inputs.release_notes }}
+          target_commitish: ${{ github.sha }}
+          body_path: release-notes.md
           files: |
             ${{ steps.locate.outputs.path }}
             symbols/libmain-run${{ github.run_number }}.symbols.txt.gz
           generate_release_notes: true
           make_latest: true
+
+      # GeneralsX @build Android port 23/11/2026 A hotfix re-run of the same
+      # version uploads a new APK, so the old one would sit
+      # next to it in the same release. Keep only the newest APK and the
+      # newest symbol table in each release, the same rule as the
+      # Actions-artifact cleanup above.
+      - name: Drop superseded assets from this release
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.create_release }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          KEEP_APK="${{ steps.locate.outputs.path }}"
+          KEEP_SYM="libmain-run${{ github.run_number }}.symbols.txt.gz"
+          gh api "repos/${{ github.repository }}/releases/tags/v${{ inputs.version_name }}" \
+            --jq '.assets[] | [.id, .name] | @tsv' \
+          | while IFS=$'\t' read -r asset_id asset_name; do
+              case "${asset_name}" in
+                GeneralZH.v*.apk|GeneralsXZH-android-run*.apk|libmain-run*.symbols.txt.gz)
+                  if [ "${asset_name}" != "${KEEP_APK}" ] && [ "${asset_name}" != "${KEEP_SYM}" ]; then
+                    echo "Deleting superseded release asset ${asset_name}"
+                    gh api -X DELETE "repos/${{ github.repository }}/releases/assets/${asset_id}" || true
+                  fi
+                  ;;
+              esac
+            done
 
       - name: Collect dependency build logs for diagnosis
         if: always()
