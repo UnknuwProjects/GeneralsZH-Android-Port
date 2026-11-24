@@ -14,9 +14,15 @@ old capped/combined text export, so a multi-minute session's real size
 truncated to the in-app viewer's head-and-tail limit. FileProvider only
 ever grants read access to whatever specific Uri a given share Intent
 names, never these whole trees.
+
+GeneralsX @feature Android port 23/11/2026 also expose the public Downloads
+folder: the in-app APK update (ApkUpdate) downloads the release there, and
+the system installer needs to read that one file through this provider.
+Only the Downloads folder, and only the single Uri the Open action names.
 -->
 <paths>
     <cache-path name="logs" path="." />
     <files-path name="internal_logs" path="." />
     <external-files-path name="external_logs" path="." />
+    <external-path name="downloads" path="Download/" />
 </paths>

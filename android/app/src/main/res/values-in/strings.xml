@@ -116,6 +116,8 @@
     <string name="setup_langpack_done">Language pack terpasang. Game akan memakainya saat kamu menjalankan game berikutnya.</string>
     <string name="setup_langpack_done_n">%1$d language pack terpasang: %2$s. Pilih salah satu di bawah.</string>
     <string name="setup_langpack_failed">Tidak bisa mengunduh language pack: %1$s</string>
+    <string name="setup_langpack_downloading_progress">Mengunduh %1$s — %2$s dari %3$s dengan kecepatan %4$s</string>
+    <string name="setup_langpack_downloading_unknown">Mengunduh %1$s — %2$s dengan kecepatan %3$s</string>
     <string name="setup_langpack_not_available">Bahasa launcher ini tidak punya pack teks game.</string>
     <string name="setup_langpack_no_folder">Pilih folder game kamu dulu.</string>
     <string name="setup_langpack_err_none_yet">Belum ada pack untuk bahasa ini. Terjemahan sangat diterima — lihat languages/README.md di repository proyek.</string>
@@ -289,7 +291,7 @@
     <string name="setup_switch_logging">Kumpulkan log</string>
     <string name="setup_switch_logging_desc">Menulis log game, crash, dan jaringan ke perangkat. Matikan supaya tidak ada yang tersimpan di latar belakang; log tetap mati sampai kamu menyalakannya lagi. Diperlukan untuk laporan bug.</string>
     <string name="setup_card_updates">Pembaruan</string>
-    <string name="setup_updates_help">Build engine yang lebih baru datang langsung dari GitHub proyek, tanpa menginstal ulang APK. Setiap pembaruan ditandatangani; apa pun yang tanpa tanda tangan yang valid diabaikan. Pengaturan jaringan dan data game jaringan ada di layar akun GeneralsOnline.</string>
+    <string name="setup_updates_help">Build engine yang lebih baru datang langsung dari GitHub proyek, tanpa menginstal ulang APK. Setiap pembaruan ditandatangani; apa pun yang tanpa tanda tangan yang valid diabaikan. Kalau ada APK baru, layar ini mengunduhnya ke Downloads untukmu — membukanya terserah kamu, dan installer sistem yang mengambil alih dari sana. Pengaturan jaringan dan data game jaringan ada di layar akun GeneralsOnline.</string>
     <string name="setup_updates_status">Engine: %1$s · Terakhir dicek: %2$s</string>
     <string name="setup_updates_engine_bundled">bawaan, build %1$d</string>
     <string name="setup_updates_engine_updated">diperbarui, build %1$d</string>
@@ -307,6 +309,18 @@
     <string name="setup_updates_datapack_installed">Patch data komunitas diperbarui ke versi %1$s.</string>
     <string name="setup_updates_datapack_available">Versi baru data game jaringan sudah keluar (%1$s). Perbarui di Akun GeneralsOnline → Data game online.</string>
     <string name="setup_updates_datapack_line_new">Versi baru data game jaringan sudah keluar: %1$s.</string>
+    <string name="setup_apk_checking">Mengecek APK baru…</string>
+    <string name="setup_apk_update_available">Versi baru sudah keluar: %1$s. Mengunduh APK ke Downloads…</string>
+    <string name="setup_apk_downloading">Mengunduh %1$s — %2$s dari %3$s dengan kecepatan %4$s</string>
+    <string name="setup_apk_downloaded">Unduhan selesai: %1$s. Buka untuk menginstal — installer sistem yang mengambil alih dari sini.</string>
+    <string name="setup_apk_open">Buka</string>
+    <string name="setup_apk_cancel">Batal</string>
+    <string name="setup_apk_download">Unduh</string>
+    <string name="setup_apk_download_failed">Unduh APK gagal: %1$s</string>
+    <string name="setup_apk_download_cancelled">Unduhan dibatalkan.</string>
+    <string name="setup_apk_check_failed">Tidak bisa mengecek APK baru: %1$s</string>
+    <string name="setup_apk_no_storage">APK disimpan di Downloads, yang butuh akses penyimpanan yang diminta pemilih folder game.</string>
+    <string name="setup_apk_no_installer">Tidak ada aplikasi di HP ini yang bisa membuka file APK.</string>
     <string name="setup_button_open_online_data">Perbarui data game jaringan</string>
     <string name="online_datapacks_update_available">Terpasang: versi %1$s. Versi baru sudah keluar: %2$s.</string>
     <string name="online_datapacks_update_for_crc">Terpasang: versi %1$s. Perbarui sekali supaya perangkat ini menghitung checksum client PC dari data itu.</string>
