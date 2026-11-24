@@ -316,8 +316,8 @@ jobs:
           # release whose tag and APK disagree.
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
-          GRADLE_VERSION_NAME="$(grep "versionName" android/app/build.gradle | sed -E "s/.*: '([^']+)'.*/\1/")"
-          VERSION_CODE="$(grep "versionCode" android/app/build.gradle | sed -E 's/.*: ([0-9]+).*/\1/')"
+          GRADLE_VERSION_NAME="$(grep -E '^\s*versionName \(' android/app/build.gradle | sed -E "s/.*: '([^']+)'.*/\1/")"
+          VERSION_CODE="$(grep -E '^\s*versionCode \(' android/app/build.gradle | sed -E 's/.*: ([0-9]+).*/\1/')"
           if [ -z "${VERSION_CODE}" ]; then
             echo "::error::could not read versionCode from android/app/build.gradle"
             exit 1
