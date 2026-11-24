@@ -1,6 +1,6 @@
 # Publishing an update without a new APK
 
-The launcher checks `updates/` on the `custom-driver` branch -- from **Home → Updates** (on start and
+The launcher checks `updates/` on the `beta` branch -- from **Home → Updates** (on start and
 with **Check for updates**) and when the **GeneralsOnline account** screen opens -- and takes two
 kinds of update from it. The settings are applied by either check and shown on the account
 screen; the engine is downloaded only by the Home check.
@@ -36,7 +36,7 @@ screen; the engine is downloaded only by the Home check.
   published as `1` and then back to `0`, the older signed manifest could be put back by hand;
   if that matters, give the engine a minimum serial in the same engine update.
 - **Data package manifest mirror**: while `datapack_manifest_url` points at the updates directory
-  (`.../custom-driver/updates/datapack-manifest.json`), `publish-update.py` copies the GeneralsOnline CDN manifest
+  (`.../beta/updates/datapack-manifest.json`), `publish-update.py` copies the GeneralsOnline CDN manifest
   there with its fields trimmed -- the CDN's `sha256` starts with a space, and launchers up to 1.3.0
   compare it untrimmed, failing every install with "checksum mismatch". The script downloads the
   package and refuses to publish unless the trimmed digest and size match it. Newer launchers ignore
@@ -62,7 +62,7 @@ Nothing is used unless it is signed with the update key.
 
 ## Two channels: releases and test builds
 
-Releases read `updates/` on the `custom-driver` branch. Test builds (packaged with
+Releases read `updates/` on the `beta` branch. Test builds (packaged with
 `GX_UPDATE_CHANNEL=test`, which writes `assets/update_channel.txt`) read `updates-test/` on the
 same branch instead, so a test engine reaches testers over the air and is never offered to
 players. Each channel keeps its own serial on the device, and an engine downloaded from one
@@ -70,7 +70,7 @@ channel does not run after an APK of the other channel is installed. Same key, s
 check.
 
 This is this fork's layout. Upstream keeps a separate `updates` branch for each channel; this
-fork serves the manifest from `custom-driver` instead, like the language packs, so everything
+fork serves the manifest from `beta` instead, like the language packs, so everything
 the launcher fetches comes from one branch.
 
 A test engine is published from a later test build than the one testers have (higher commit
@@ -106,9 +106,9 @@ with its public key.
 
 ## Publishing
 
-The manifest and its signature are plain files on `custom-driver`, under `updates/` (releases)
+The manifest and its signature are plain files on `beta`, under `updates/` (releases)
 or `updates-test/` (test builds). To publish a new one: bump `serial`, write the manifest, sign
-it with the fork's key, and commit both files on `custom-driver`:
+it with the fork's key, and commit both files on `beta`:
 
 ```bash
 openssl dgst -sha256 -sign unknuw-generalszh-update-signing-key.pem \

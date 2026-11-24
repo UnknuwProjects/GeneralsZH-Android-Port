@@ -367,7 +367,7 @@ static void TryLoadCustomVulkanDriver(const char *internalPath)
 	// dlopen() is ever reached, which is exactly why adding a dlerror() log
 	// to the failure path earlier showed "(none)" -- the failure was a plain
 	// ENOENT from stat(), never a dlopen() error at all. This has silently
-	// broken every custom-driver (Turnip) import on Android since the
+	// broken every Turnip import on the beta branch since the
 	// feature was added.
 	snprintf(driverDir, sizeof(driverDir), "%s/custom_driver/", internalPath);
 	if (access(driverDir, R_OK) != 0) {

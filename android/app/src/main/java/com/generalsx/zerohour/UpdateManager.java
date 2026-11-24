@@ -29,7 +29,7 @@ import java.util.zip.GZIPInputStream;
 /**
  * GeneralsX @feature Android port 27/09/2026 Updates without reinstalling the APK.
  *
- * The manifest lives on this fork's {@code custom-driver} branch, under {@code updates/}
+ * The manifest lives on this fork's {@code beta} branch, under {@code updates/}
  * (releases) or {@code updates-test/} (test builds): {@code manifest.json}, its signature
  * {@code manifest.json.sig}, and, when there is one, a newer engine ({@code engine/<seq>/
  * libmain.so.gz}, {@code libmain60.so.gz}). The launcher fetches the manifest, and uses it only if
@@ -67,14 +67,14 @@ final class UpdateManager {
     // GeneralsX @feature Android port 23/11/2026 Fork serves its own updates channel, not
     // upstream's: upstream's manifest is signed with upstream's key and carries upstream's
     // engine, so applying it here would replace this fork's engine (terrain and driver
-    // fixes included) with upstream's. The manifest now lives on this fork's custom-driver
+    // fixes included) with upstream's. The manifest now lives on this fork's beta
     // branch instead (see baseUrl), signed with the fork's own key below.
     static final String RAW_ROOT =
         "https://raw.githubusercontent.com/UnknuwProjects/GeneralsZH-Android-Port/";
 
     /**
      * GeneralsX @feature Android port 18/10/2026 Two channels. Releases read {@code updates/}
-     * on the custom-driver branch; a test build (assets/update_channel.txt = "test", written by
+     * on the beta branch; a test build (assets/update_channel.txt = "test", written by
      * the packaging script when GX_UPDATE_CHANNEL=test) reads {@code updates-test/} on the same
      * branch, so a test engine reaches testers over the air without ever being offered to
      * players. Without the file it is a release.
@@ -98,9 +98,9 @@ final class UpdateManager {
 
     static String baseUrl(Context ctx) {
         // GeneralsX @feature Android port 23/11/2026 The manifest is served from the
-        // custom-driver branch itself, like the language packs -- not from a separate
+        // beta branch itself, like the language packs -- not from a separate
         // updates branch (upstream's layout). The channel is a directory on that branch.
-        return RAW_ROOT + "custom-driver/" + (isTestChannel(ctx) ? "updates-test/" : "updates/");
+        return RAW_ROOT + "beta/" + (isTestChannel(ctx) ? "updates-test/" : "updates/");
     }
 
     /** SubjectPublicKeyInfo (DER, base64) of the update signing key. */

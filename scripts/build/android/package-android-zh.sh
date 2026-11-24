@@ -329,15 +329,15 @@ find "${DEFAULT_DRIVER_ASSETS}" -type f | sed "s|${DEFAULT_DRIVER_ASSETS}/|    d
 ENGINE_BUILD="$(git -C "${PROJECT_ROOT}" rev-list --count HEAD 2>/dev/null || echo 0)"
 echo "${ENGINE_BUILD}" > "${ANDROID_DIR}/app/src/main/assets/engine_build.txt"
 # GeneralsX @feature Android port 18/10/2026 Update channel (UpdateManager.isTestChannel): a test
-# build reads updates-test/ on custom-driver, a release reads updates/ on custom-driver.
+# build reads updates-test/ on beta, a release reads updates/ on beta.
 # Releases leave it unset.
 CHANNEL_FILE="${ANDROID_DIR}/app/src/main/assets/update_channel.txt"
 if [[ "${GX_UPDATE_CHANNEL:-}" == "test" ]]; then
     echo "test" > "${CHANNEL_FILE}"
-    echo "==> Update channel: test (custom-driver/updates-test)"
+    echo "==> Update channel: test (beta/updates-test)"
 else
     rm -f "${CHANNEL_FILE}"
-    echo "==> Update channel: release (custom-driver/updates)"
+    echo "==> Update channel: release (beta/updates)"
 fi
 echo "==> Engine build number: ${ENGINE_BUILD}"
 

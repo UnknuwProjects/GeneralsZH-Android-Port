@@ -3826,12 +3826,12 @@ public class SetupActivity extends Activity {
     // GeneralsX @feature Android port 23/11/2026 Beta builds fetch packs from this fork, not
     // upstream: a pack merged here (Indonesian) reaches beta testers without waiting for the
     // upstream pull request. This is fork-only -- the upstream PR keeps MYSOREZ's own URLs.
-    // It names the custom-driver branch; if that branch goes away, point these two at the
+    // It names the beta branch; if that branch goes away, point these two at the
     // branch carrying languages/ instead.
     private static final String LANGUAGE_PACK_INDEX =
-        "https://api.github.com/repos/UnknuwProjects/GeneralsZH-Android-Port/contents/languages?ref=custom-driver";
+        "https://api.github.com/repos/UnknuwProjects/GeneralsZH-Android-Port/contents/languages?ref=beta";
     private static final String LANGUAGE_PACK_BASE =
-        "https://raw.githubusercontent.com/UnknuwProjects/GeneralsZH-Android-Port/custom-driver/languages/";
+        "https://raw.githubusercontent.com/UnknuwProjects/GeneralsZH-Android-Port/beta/languages/";
     // GeneralsX @bugfix Android port 19/10/2026 The list of languages is a plain file served like the
     // packs themselves. api.github.com allows 60 requests an hour per address without signing in, and
     // a mobile operator puts a great many phones behind one address, so the directory listing above
