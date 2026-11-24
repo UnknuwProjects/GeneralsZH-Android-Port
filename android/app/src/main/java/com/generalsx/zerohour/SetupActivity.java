@@ -3641,12 +3641,12 @@ public class SetupActivity extends Activity {
     // GeneralsX @feature Android port 24/11/2026 Stable builds fetch packs from this fork, not
     // upstream: the Indonesian pack lives on this branch, so players get it without waiting for
     // the upstream pull request. This is fork-only -- the upstream PR keeps MYSOREZ's own URLs.
-    // It names the stable-1.0.0 branch; if that branch goes away, point these two at the
+    // It names the stable branch; if that branch goes away, point these two at the
     // branch carrying languages/ instead.
     private static final String LANGUAGE_PACK_INDEX =
-        "https://api.github.com/repos/UnknuwProjects/GeneralsZH-Android-Port/contents/languages?ref=stable-1.0.0";
+        "https://api.github.com/repos/UnknuwProjects/GeneralsZH-Android-Port/contents/languages?ref=stable";
     private static final String LANGUAGE_PACK_BASE =
-        "https://raw.githubusercontent.com/UnknuwProjects/GeneralsZH-Android-Port/stable-1.0.0/languages/";
+        "https://raw.githubusercontent.com/UnknuwProjects/GeneralsZH-Android-Port/stable/languages/";
     // GeneralsX @bugfix Android port 19/10/2026 The list of languages is a plain file served like the
     // packs themselves. api.github.com allows 60 requests an hour per address without signing in, and
     // a mobile operator puts a great many phones behind one address, so the directory listing above
