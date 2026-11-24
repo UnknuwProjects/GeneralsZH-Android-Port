@@ -80,16 +80,19 @@ android {
         // manually managed from here on -- CI no longer auto-bumps versionCode
         // from the workflow run number on every push. Bump these two values
         // by hand when you actually want to ship a new version; -PandroidVersionCode=N
-        // / -PandroidVersionName=X.Y.Z (wired from the "Build Android" workflow's
-        // manual-dispatch inputs) can still override them for one-off CI builds
-        // without touching this file. versionCode must strictly increase for
-        // Android to accept installing one APK "over" another via a normal tap
-        // install (adb install -r doesn't care) -- keep it above whatever is
-        // already on your device.
+        // / -PandroidVersionName=X.Y.Z (set by the workflow from the tag and these
+        // defaults) can still override them for one-off builds without touching
+        // this file. versionCode must strictly increase for Android to accept
+        // installing one APK "over" another via a normal tap install
+        // (adb install -r doesn't care) -- keep it above whatever is already on
+        // your device.
         // Scheme: versionCode = major*10000 + minor*100 + patch, so the
         // number always sorts the same way as versionName (1.2.0 -> 10200).
-        versionCode (project.hasProperty('androidVersionCode') ? (project.androidVersionCode as Integer) : 10402)
-        versionName (project.hasProperty('androidVersionName') ? project.androidVersionName : '1.4.2')
+        // 1.0.0 ships at 10419, not the formula's 10000: the first stable release
+        // has to install over the beta builds already on devices (10418 and up),
+        // so its code stays above them. Later versions go back to the formula.
+        versionCode (project.hasProperty('androidVersionCode') ? (project.androidVersionCode as Integer) : 10419)
+        versionName (project.hasProperty('androidVersionName') ? project.androidVersionName : '1.0.0')
         ndk {
             abiFilters 'arm64-v8a'
         }
