@@ -75,6 +75,7 @@
 #include "GameLogic/Module/BodyModule.h"
 #include "GameLogic/Module/CollideModule.h"
 #include "GameLogic/Module/ContainModule.h"
+#include "GameLogic/Module/PhysicsUpdate.h"
 #include "GameLogic/Module/StealthUpdate.h"
 #include "GameLogic/PartitionManager.h"
 #include "GameLogic/PolygonTrigger.h"
@@ -2554,6 +2555,41 @@ void PartitionContactList::resetContactList()
 }
 
 //-----------------------------------------------------------------------------
+// GeneralsX @performance UNKNUW 24/11/2026 Did this object really move between
+// two positions, or only jitter by roundoff? Same threshold Object::isPosDifferent()
+// uses (Object.cpp): PhysicsBehavior jitters a standing-still object by tiny
+// amounts every frame, so a move smaller than this is noise, not a real move.
+// The movement path dirties the partition on the same threshold, so a real move
+// is always re-checked through there, and a sub-threshold nudge never keeps a
+// collision pair dirty. 0.01 world units is far below the partition cell size
+// (at least 1.0), so it cannot change the neighbour set on its own.
+static Bool gxPositionMoved(const Coord3D* before, const Coord3D* after)
+{
+	const Real GX_COLLIDE_MOVE_THRESH = 0.01f;
+	return fabs(before->x - after->x) > GX_COLLIDE_MOVE_THRESH
+		|| fabs(before->y - after->y) > GX_COLLIDE_MOVE_THRESH
+		|| fabs(before->z - after->z) > GX_COLLIDE_MOVE_THRESH;
+}
+
+//-----------------------------------------------------------------------------
+// GeneralsX @performance UNKNUW 24/11/2026 Does this object have a collide
+// module other than the physics push-apart? Such a module may need to fire
+// again while the pair stays overlapping -- FireWeaponCollide fires its weapon
+// every frame by design -- so those objects keep being re-dirtied after every
+// collision. A physics-only object has nothing to repeat while it stands still.
+static Bool gxHasNonPhysicsCollide(Object* obj)
+{
+	PhysicsBehavior* phys = obj->getPhysics();
+	for (BehaviorModule** m = obj->getBehaviorModules(); *m; ++m)
+	{
+		CollideModuleInterface* collide = (*m)->getCollide();
+		if (collide != nullptr && collide != phys)
+			return true;
+	}
+	return false;
+}
+
+//-----------------------------------------------------------------------------
 void PartitionContactList::processContactList()
 {
 	for (PartitionContactListNode* cd = m_contactList; cd; cd = cd->m_next)
@@ -2583,6 +2619,12 @@ void PartitionContactList::processContactList()
 		cd->m_obj = nullptr;
 		cd->m_other = nullptr;
 
+		// GeneralsX @performance UNKNUW 24/11/2026 Snapshot both positions before
+		// the collide calls, so the re-dirty below can tell whether the collision
+		// actually moved anything. See gxPositionMoved / gxHasNonPhysicsCollide.
+		Coord3D objPosBefore = *obj->getPosition();
+		Coord3D otherPosBefore = *other->getPosition();
+
 		obj->onCollide(other, &cinfo.loc, &cinfo.normal);
 		flipCoord3D(&cinfo.normal);
 
@@ -2601,12 +2643,26 @@ void PartitionContactList::processContactList()
 		// NOTE also that we re-get partitiondata from the object, since it might have been
 		// removed from the partition system by the onCollide call...
 		//
-		if (!obj->isDestroyed() && obj->friend_getPartitionData() != nullptr && !obj->isKindOf(KINDOF_IMMOBILE))
+		// GeneralsX @performance UNKNUW 24/11/2026 Only re-dirty an object when the
+		// collision changed something a re-test could see: either it has a
+		// non-physics collide module that must fire again while the pair stays
+		// overlapping, or the push actually moved it. A physics-only pair where
+		// neither object moved re-tests identically next frame, so re-dirtying it
+		// only feeds the same pair back into the next frame's contact list -- in
+		// a dense battle that loop cost 1138 ms in one logic step (obj=1695,
+		// 10418 log), while a calm game with the same object count costs 3-12 ms.
+		// A real move is already re-checked through the movement path
+		// (makeDirty(true) on a position change), so skipping the re-dirty here
+		// loses no collision.
+		//
+		if (!obj->isDestroyed() && obj->friend_getPartitionData() != nullptr && !obj->isKindOf(KINDOF_IMMOBILE)
+			&& (gxPositionMoved(&objPosBefore, obj->getPosition()) || gxHasNonPhysicsCollide(obj)))
 		{
 //DEBUG_LOG(("%d: re-dirtying collision of %s %08lx with %s %08lx",TheGameLogic->getFrame(),obj->getTemplate()->getName().str(),obj,other->getTemplate()->getName().str(),other));
 			obj->friend_getPartitionData()->makeDirty(false);
 		}
-		if (!other->isDestroyed() && other->friend_getPartitionData() != nullptr && !other->isKindOf(KINDOF_IMMOBILE))
+		if (!other->isDestroyed() && other->friend_getPartitionData() != nullptr && !other->isKindOf(KINDOF_IMMOBILE)
+			&& (gxPositionMoved(&otherPosBefore, other->getPosition()) || gxHasNonPhysicsCollide(other)))
 		{
 //DEBUG_LOG(("%d: re-dirtying collision of %s %08lx with %s %08lx [other]",TheGameLogic->getFrame(),other->getTemplate()->getName().str(),other,obj->getTemplate()->getName().str(),obj));
 			other->friend_getPartitionData()->makeDirty(false);
