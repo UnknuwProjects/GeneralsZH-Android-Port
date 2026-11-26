@@ -902,6 +902,20 @@ Real OptionPreferences::getMaxCameraHeight() const
 	return val;
 }
 
+// GeneralsX @feature Android port 13/11/2026 Issue #82: the height a match starts at, from the Extras
+// menu, in the units of MaxCameraHeight (the Tactical scheme's raised ceiling included). 0, the
+// default, starts at the maximum, as the original game does.
+Int OptionPreferences::getStartCameraHeight() const
+{
+	OptionPreferences::const_iterator it = find("StartCameraHeight");
+	if (it == end())
+		return 0;
+	const Int val = atoi(it->second.str());
+	if (val <= 0)
+		return 0;
+	return val > 3600 ? 3600 : val;
+}
+
 Real OptionPreferences::getMinCameraHeight() const
 {
 	OptionPreferences::const_iterator it = find("MinCameraHeight");
@@ -937,6 +951,12 @@ Real OptionPreferences::getTerrainDrawDistanceScale() const
 		return TheGlobalData->m_terrainDrawDistanceScale;
 
 	Real val = (Real)atof(it->second.str());
+	// GeneralsX @bugfix Android port 12/11/2026 Issue #74: the Extras menu saves the slider's percent
+	// (100-200), and this read it as the scale (1.0-2.0): every saved value came back as 2.0, the
+	// slider showed 200 after Accept and the terrain was drawn at the farthest distance. A value
+	// above 10 is a percent; a scale written by hand or by GameData.ini still reads as before.
+	if (val > 10.0f)
+		val /= 100.0f;
 	if (val < 1.0f)
 		val = 1.0f;
 	if (val > 2.0f)

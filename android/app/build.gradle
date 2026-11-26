@@ -90,9 +90,10 @@ android {
         // number always sorts the same way as versionName (1.2.0 -> 10200).
         // 1.0.0 ships at 10419, not the formula's 10000: the first stable release
         // has to install over the beta builds already on devices (10418 and up),
-        // so its code stays above them. Later versions go back to the formula.
-        versionCode (project.hasProperty('androidVersionCode') ? (project.androidVersionCode as Integer) : 10419)
-        versionName (project.hasProperty('androidVersionName') ? project.androidVersionName : '1.0.0')
+        // so its code stays above them. 1.0.1 follows at 10420 for the same
+        // reason -- the formula's 10101 would read as a downgrade.
+        versionCode (project.hasProperty('androidVersionCode') ? (project.androidVersionCode as Integer) : 10420)
+        versionName (project.hasProperty('androidVersionName') ? project.androidVersionName : '1.0.1')
         ndk {
             abiFilters 'arm64-v8a'
         }

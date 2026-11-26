@@ -224,7 +224,17 @@ static bool SDLCALL mobileLifecycleWatcher(void *userdata, SDL_Event *event)
 		// after DID_ENTER_FOREGROUND.
 		case SDL_EVENT_WINDOW_FOCUS_LOST:
 			logMobileLifecycleEvent("WINDOW_FOCUS_LOST");
+#if defined(__ANDROID__)
+			// GeneralsX @bugfix Android port 17/11/2026 On Android focus goes to anything drawn over the
+			// game -- the notification shade, a chat bubble, an incoming-call banner -- while the game
+			// stays on screen with its surface intact. Halting the whole loop then (the iOS reason above
+			// does not apply) stopped the engine update, network included: no commands left the phone,
+			// and the other players' disconnect timers ran out ("random kicks"). Android halts only when
+			// it really goes to the background (WILL/DID_ENTER_BACKGROUND above). Found in the Flux-Egy
+			// fork (its multiplayer device logs); written here for this watcher.
+#else
 			s_appInactive.store(true);
+#endif
 			break;
 		case SDL_EVENT_WINDOW_FOCUS_GAINED:
 			logMobileLifecycleEvent("WINDOW_FOCUS_GAINED");
@@ -3015,6 +3025,15 @@ void SDL3GameEngine::pollSDL3Events(void)
 				// Dismissing it and tapping anything brought it straight back.
 				// GeneralsX @feature Android port 05/10/2026 With a pointer chosen in the launcher a
 				// finger is a touchpad (handleTouchpadEvent), and the native touch layer stays out.
+				// GeneralsX @bugfix Android port 02/11/2026 Issue #60: SDL turns a real mouse's left button
+				// into a touch as well (SDL_HINT_MOUSE_TOUCH_EVENTS, on by default on Android) -- that is how
+				// a mouse clicks without the mouse mode, through the touch layer. With the mode on, the button
+				// already reaches the game as a mouse button, and its touch copy went on to the touchpad
+				// emulation too: every click twice, a hold needed to select (the touchpad's tap rules), and
+				// the game's cursor flickering against Android's as the two took turns.
+				if (GXMouseModeEnabled() && event.tfinger.touchID == SDL_MOUSE_TOUCHID) {
+					break;
+				}
 				if (GXMouseModeEnabled()) {
 					Int clickX = 0, clickY = 0;
 					if (m_SDLWindow && handleTouchpadEvent(m_SDLWindow, event, clickX, clickY)) {
